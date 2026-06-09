@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biblioteca Virtual Monteiro Lobato</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --verde-escuro: #2F5233;
+    --verde-medio: #6A8F4E;
+    --marrom: #B84A1B;
+    --laranja: #E38B2C;
+    --bege: #E7DFD7;
+    --bege-escuro: #D4C9BE;
+    --bg: #F5F1EC;
+    --surface: #FFFFFF;
+    --text-primary: #1A1A18;
+    --text-secondary: #5C5A52;
+    --text-muted: #8A8880;
+    --border: rgba(47,82,51,0.15);
+    --border-strong: rgba(47,82,51,0.3);
+    --sidebar-width: 220px;
+    --radius: 10px;
+    --radius-lg: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-primary); display: flex; min-height: 100vh; font-size: 14px; }
+
+  /* SIDEBAR */
+  #sidebar {
+    width: var(--sidebar-width); background: var(--verde-escuro); color: #fff;
+    display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh;
+    z-index: 100; transition: width 0.2s;
+  }
+  .sidebar-logo {
+    padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .sidebar-logo h1 { font-family: 'Merriweather', serif; font-size: 13px; font-weight: 700; line-height: 1.4; color: #fff; }
+  .sidebar-logo p { font-size: 11px; color: rgba(255,255,255,0.55); margin-top: 2px; }
+  .sidebar-search {
+    padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .sidebar-search input {
+    width: 100%; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px; padding: 7px 10px; color: #fff; font-size: 12px; outline: none;
+  }
+  .sidebar-search input::placeholder { color: rgba(255,255,255,0.45); }
+  .sidebar-search input:focus { background: rgba(255,255,255,0.15); }
+  .sidebar-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    cursor: pointer; transition: all 0.15s; color: rgba(255,255,255,0.7);
+    font-size: 13px; font-weight: 500; border-left: 3px solid transparent;
+    text-decoration: none;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .nav-item.active { background: rgba(255,255,255,0.12); color: #fff; border-left-color: var(--laranja); }
+  .nav-item .nav-icon { font-size: 18px; width: 20px; text-align: center; flex-shrink: 0; }
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .sidebar-footer span { font-size: 11px; color: rgba(255,255,255,0.4); }
+
+  /* MAIN CONTENT */
+  #main { margin-left: var(--sidebar-width); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+  .topbar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar-title { font-size: 15px; font-weight: 600; color: var(--verde-escuro); }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .btn-export {
+    display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+    background: var(--verde-escuro); color: #fff; border: none; border-radius: 6px;
+    font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-export:hover { background: var(--verde-medio); }
+  .page-content { padding: 24px; flex: 1; }
+
+  /* PAGES */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* CARDS */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 20px;
+  }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--verde-escuro); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-title .dot { width: 8px; height: 8px; background: var(--laranja); border-radius: 50%; }
+
+  /* METRIC CARDS */
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .metric-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px;
+  }
+  .metric-card.green { border-left: 3px solid var(--verde-escuro); }
+  .metric-card.orange { border-left: 3px solid var(--laranja); }
+  .metric-card.red { border-left: 3px solid #C0392B; }
+  .metric-card.brown { border-left: 3px solid var(--marrom); }
+  .metric-card .m-label { font-size: 11px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+  .metric-card .m-value { font-size: 26px; font-weight: 700; color: var(--text-primary); margin-top: 4px; }
+  .metric-card .m-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* FORM */
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .form-group input, .form-group select, .form-group textarea {
+    border: 1px solid var(--border-strong); border-radius: 7px; padding: 8px 10px;
+    font-size: 13px; color: var(--text-primary); background: var(--surface); outline: none;
+    transition: border-color 0.15s; font-family: 'Inter', sans-serif;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--verde-medio); box-shadow: 0 0 0 3px rgba(106,143,78,0.1); }
+  .form-group input[readonly] { background: var(--bege); color: var(--text-secondary); }
+
+  /* BUTTONS */
+  .btn-primary {
+    background: var(--verde-escuro); color: #fff; border: none;
+    border-radius: 7px; padding: 9px 18px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-primary:hover { background: var(--verde-medio); }
+  .btn-secondary {
+    background: transparent; color: var(--text-secondary); border: 1px solid var(--border-strong);
+    border-radius: 7px; padding: 8px 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-secondary:hover { background: var(--bege); }
+  .btn-danger { background: #C0392B; color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .btn-warning { background: var(--marrom); color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .btn-sm { background: var(--verde-escuro); color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 9px 12px; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
+  tr:hover td { background: rgba(106,143,78,0.04); }
+  tr:last-child td { border-bottom: none; }
+
+  /* BADGES / STATUS */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: #E8F5E2; color: #2F5233; }
+  .badge-orange { background: #FFF3E0; color: #B84A1B; }
+  .badge-red { background: #FDECEA; color: #C0392B; }
+  .badge-gray { background: #F0EDEA; color: #5C5A52; }
+  .badge-blue { background: #E3F0FB; color: #1565C0; }
+
+  /* SEARCH BAR */
+  .search-wrap { position: relative; }
+  .search-wrap input { padding-left: 34px; }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 15px; pointer-events: none; }
+
+  /* SECTION DIVIDER */
+  .section-divider { margin: 20px 0; border: none; border-top: 1px solid var(--border); }
+
+  /* DASHBOARD GRID */
+  .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .dash-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 16px; }
+  @media (max-width: 900px) { .dash-grid, .dash-grid-3 { grid-template-columns: 1fr; } }
+
+  /* PLANNER */
+  .calendar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .calendar-nav { display: flex; gap: 8px; }
+  .cal-btn { background: var(--bege); border: 1px solid var(--border-strong); border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 13px; }
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-day-header { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-muted); padding: 4px; }
+  .cal-day {
+    min-height: 70px; border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px; cursor: pointer; transition: all 0.15s; background: var(--surface); position: relative;
+  }
+  .cal-day:hover { border-color: var(--verde-medio); background: rgba(106,143,78,0.04); }
+  .cal-day.today { border-color: var(--laranja); background: rgba(227,139,44,0.06); }
+  .cal-day.other-month { opacity: 0.4; }
+  .cal-day.has-note { background: rgba(47,82,51,0.06); }
+  .cal-day-num { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .cal-day.today .cal-day-num { color: var(--laranja); }
+  .cal-note { font-size: 10px; color: var(--verde-escuro); margin-top: 4px; background: rgba(47,82,51,0.1); border-radius: 4px; padding: 2px 4px; line-height: 1.3; }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal {
+    background: var(--surface); border-radius: var(--radius-lg); padding: 24px;
+    max-width: 500px; width: 100%; max-height: 80vh; overflow-y: auto;
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .modal-header h3 { font-size: 15px; font-weight: 600; color: var(--verde-escuro); }
+  .modal-close { background: none; border: none; cursor: pointer; font-size: 18px; color: var(--text-muted); padding: 4px; }
+  .modal-close:hover { color: var(--text-primary); }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 999;
+    background: var(--verde-escuro); color: #fff; padding: 12px 20px;
+    border-radius: 8px; font-size: 13px; font-weight: 500;
+    transform: translateY(100px); opacity: 0; transition: all 0.3s;
+    max-width: 300px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.error { background: #C0392B; }
+
+  /* ALERT */
+  .alert { padding: 10px 14px; border-radius: 7px; font-size: 12px; margin-bottom: 12px; }
+  .alert-warning { background: #FFF3E0; color: #B84A1B; border: 1px solid rgba(184,74,27,0.2); }
+  .alert-success { background: #E8F5E2; color: #2F5233; border: 1px solid rgba(47,82,51,0.2); }
+  .alert-info { background: #E3F0FB; color: #1565C0; border: 1px solid rgba(21,101,192,0.2); }
+
+  /* SEARCH RESULT DROPDOWN */
+  .search-global-wrap { position: relative; }
+  .search-global-results {
+    position: absolute; top: 100%; left: 0; right: 0; background: var(--surface);
+    border: 1px solid var(--border-strong); border-radius: 8px; z-index: 100;
+    max-height: 300px; overflow-y: auto; box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  }
+  .search-result-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .search-result-item:hover { background: var(--bege); }
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-type { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+  .search-result-name { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+
+  /* FINANCEIRO */
+  .fin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab {
+    padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: var(--text-muted); border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+  .tab.active { color: var(--verde-escuro); border-bottom-color: var(--verde-escuro); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 40px; color: var(--text-muted); }
+  .spinner { display: inline-block; width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--verde-escuro); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 40px; color: var(--text-muted); }
+  .empty .empty-icon { font-size: 40px; margin-bottom: 8px; }
+  .empty p { font-size: 13px; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    #sidebar { width: 60px; }
+    .nav-item span { display: none; }
+    .sidebar-logo h1, .sidebar-logo p, .sidebar-search, .sidebar-footer span { display: none; }
+    #main { margin-left: 60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <h1>📚 Biblioteca<br>Monteiro Lobato</h1>
+    <p>Sistema de Gestão</p>
+  </div>
+  <div class="sidebar-search">
+    <div class="search-global-wrap">
+      <input type="text" id="globalSearch" placeholder="🔍 Busca global..." oninput="globalSearchFn(this.value)">
+      <div id="globalResults" class="search-global-results" style="display:none;"></div>
+    </div>
+  </div>
+  <div class="sidebar-nav">
+    <a class="nav-item active" onclick="navigate('dashboard')" href="#">
+      <span class="nav-icon">🏠</span><span>Início</span>
+    </a>
+    <a class="nav-item" onclick="navigate('retirada')" href="#">
+      <span class="nav-icon">📖</span><span>Retirada</span>
+    </a>
+    <a class="nav-item" onclick="navigate('livros')" href="#">
+      <span class="nav-icon">📚</span><span>Livros</span>
+    </a>
+    <a class="nav-item" onclick="navigate('alunos')" href="#">
+      <span class="nav-icon">👥</span><span>Alunos</span>
+    </a>
+  </div>
+  <div class="sidebar-footer">
+    <span id="apiStatus">⚡ Conectado</span>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div id="main">
+  <div class="topbar">
+    <span class="topbar-title" id="pageTitle">Dashboard</span>
+    <div class="topbar-right">
+      <button class="btn-export" onclick="exportarDados('xlsx')">⬇ Excel</button>
+      <button class="btn-export" onclick="exportarDados('csv')">⬇ CSV</button>
+    </div>
+  </div>
+
+  <div class="page-content">
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <div class="page active" id="page-dashboard">
+      <div class="metrics-grid" id="metricsGrid"></div>
+
+      <div class="dash-grid">
+        <!-- Financeiro -->
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Controle de Multas</div>
+          <div class="fin-grid" id="finGrid"></div>
+        </div>
+        <!-- Chart multas -->
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Multas por Mês</div>
+          <canvas id="chartMultas" height="150"></canvas>
+        </div>
+      </div>
+
+      <div class="dash-grid" style="margin-top:16px;">
+        <!-- Top livros -->
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Top 10 Livros Mais Retirados</div>
+          <div id="topLivros"></div>
+        </div>
+        <!-- Ranking turmas -->
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Ranking de Turmas</div>
+          <div id="rankingTurmas"></div>
+        </div>
+      </div>
+
+      <!-- Planner -->
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title"><span class="dot"></span>Planner Mensal</div>
+        <div class="calendar-header">
+          <strong id="calMonthYear" style="font-size:14px;color:var(--verde-escuro);"></strong>
+          <div class="calendar-nav">
+            <button class="cal-btn" onclick="calNav(-1)">◀</button>
+            <button class="cal-btn" onclick="calNav(0)">Hoje</button>
+            <button class="cal-btn" onclick="calNav(1)">▶</button>
+          </div>
+        </div>
+        <div id="calGrid" class="calendar-grid"></div>
+      </div>
+    </div>
+
+    <!-- ==================== RETIRADA ==================== -->
+    <div class="page" id="page-retirada">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot"></span>Registrar Retirada</div>
+        <div id="alertRetirada"></div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Turma</label>
+            <select id="ret_turma" onchange="filtrarAlunosPorTurma()">
+              <option value="">Selecione a turma...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Aluno</label>
+            <select id="ret_aluno" onchange="carregarDadosAluno()">
+              <option value="">Selecione o aluno...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Número do Aluno</label>
+            <input type="text" id="ret_num_aluno" readonly placeholder="Gerado automaticamente">
+          </div>
+        </div>
+        <div class="form-grid" style="margin-top:12px;">
+          <div class="form-group">
+            <label>Número do Livro</label>
+            <input type="text" id="ret_num_livro" oninput="buscarLivro(this.value)" placeholder="Digite o número...">
+          </div>
+          <div class="form-group">
+            <label>Título</label>
+            <input type="text" id="ret_titulo_livro" readonly placeholder="Automático">
+          </div>
+          <div class="form-group">
+            <label>Autor</label>
+            <input type="text" id="ret_autor_livro" readonly placeholder="Automático">
+          </div>
+          <div class="form-group">
+            <label>Status do Livro</label>
+            <input type="text" id="ret_status_livro" readonly placeholder="Automático">
+          </div>
+        </div>
+        <div class="form-grid" style="margin-top:12px;">
+          <div class="form-group">
+            <label>Data de Retirada</label>
+            <input type="date" id="ret_data_retirada">
+          </div>
+          <div class="form-group">
+            <label>Data Prevista de Entrega</label>
+            <input type="date" id="ret_data_devolucao">
+          </div>
+          <div class="form-group">
+            <label>Livro anterior foi entregue?</label>
+            <select id="ret_livro_anterior">
+              <option value="">N/A</option>
+              <option value="sim">Sim</option>
+              <option value="nao">Não</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="btn-primary" onclick="registrarRetirada()">✅ Registrar Retirada</button>
+        </div>
+      </div>
+
+      <!-- Histórico do aluno -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>Histórico do Aluno</div>
+        <div id="historicoAlunoRetirada">
+          <div class="empty"><div class="empty-icon">📋</div><p>Selecione um aluno para ver o histórico</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== LIVROS ==================== -->
+    <div class="page" id="page-livros">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot"></span>Cadastro de Livro</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Número do Livro</label>
+            <input type="text" id="liv_numero" placeholder="Ex: 1542">
+          </div>
+          <div class="form-group">
+            <label>Título</label>
+            <input type="text" id="liv_titulo" placeholder="Nome do livro">
+          </div>
+          <div class="form-group">
+            <label>Autor</label>
+            <input type="text" id="liv_autor" placeholder="Nome do autor">
+          </div>
+          <div class="form-group">
+            <label>Categoria</label>
+            <input type="text" id="liv_categoria" placeholder="Ex: Literatura, Ciências...">
+          </div>
+          <div class="form-group">
+            <label>Local (padrão: Biblioteca)</label>
+            <input type="text" id="liv_local" placeholder="Biblioteca">
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn-primary" onclick="cadastrarLivro()">💾 Salvar Livro</button>
+        </div>
+      </div>
+
+      <!-- Catálogo -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>Catálogo de Livros</div>
+        <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+          <div class="search-wrap" style="flex:1; min-width:180px;">
+            <input type="text" id="buscaLivro" oninput="filtrarLivros()" placeholder="🔍 Buscar por número, título ou autor...">
+          </div>
+          <select id="filtroStatus" onchange="filtrarLivros()" style="border:1px solid var(--border-strong); border-radius:7px; padding:8px 10px; font-size:13px;">
+            <option value="">Todos os status</option>
+            <option value="disponível">Disponível</option>
+            <option value="emprestado">Emprestado</option>
+            <option value="perdido">Perdido</option>
+            <option value="danificado">Danificado</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nº</th><th>Título</th><th>Autor</th><th>Categoria</th><th>Local</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="tabelaLivros"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== ALUNOS ==================== -->
+    <div class="page" id="page-alunos">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot"></span>Cadastro de Aluno</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nome do Aluno</label>
+            <input type="text" id="alu_nome" placeholder="Nome completo">
+          </div>
+          <div class="form-group">
+            <label>Turma</label>
+            <input type="text" id="alu_turma" placeholder="Ex: 51, 62, 71...">
+          </div>
+          <div class="form-group">
+            <label>Número do Aluno (gerado automaticamente)</label>
+            <input type="text" id="alu_numero" readonly placeholder="Será gerado">
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn-primary" onclick="cadastrarAluno()">💾 Cadastrar Aluno</button>
+        </div>
+      </div>
+
+      <!-- Gerenciamento de Turmas -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>Gerenciamento de Turmas</div>
+        <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:flex-end;">
+          <div class="form-group" style="flex:1; min-width:160px;">
+            <label>Selecionar Turma</label>
+            <select id="selTurma" onchange="carregarTurma()">
+              <option value="">Selecione uma turma...</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1; min-width:160px;">
+            <label>Renomear para</label>
+            <input type="text" id="novoNomeTurma" placeholder="Novo nome da turma">
+          </div>
+          <button class="btn-secondary" onclick="renomearTurma()">Renomear Turma</button>
+        </div>
+        <div id="listaTurmaAlunos">
+          <div class="empty"><div class="empty-icon">👥</div><p>Selecione uma turma</p></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-content -->
+</div><!-- /main -->
+
+<!-- MODAL -->
+<div id="modalOverlay" class="modal-overlay" style="display:none;" onclick="closeModal(event)">
+  <div class="modal" id="modalContent" onclick="e=>e.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modalTitle">Modal</h3>
+      <button class="modal-close" onclick="closeModalFn()">✕</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIG & STATE
+// ============================================================
+const API_BASE = 'https://sheetdb.io/api/v1/155duqegcxrm3';
+const TODAY = new Date().toISOString().split('T')[0];
+let state = { alunos: [], livros: [], emprestimos: [], planner: {}, calDate: new Date(), loaded: false };
+let chartMultas = null;
+
+// ============================================================
+// UTILS
+// ============================================================
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = type === 'error' ? 'toast error show' : 'toast show';
+  setTimeout(() => t.className = 'toast', 3000);
+}
+function genId8() {
+  let n; do { n = Math.floor(10000000 + Math.random() * 90000000).toString(); } while (state.alunos.find(a => a.numero_aluno === n));
+  return n;
+}
+function genEmpId() {
+  return 'EMP' + Date.now().toString().slice(-6);
+}
+function fmtDate(d) {
+  if (!d) return '-';
+  const [y,m,di] = d.split('-');
+  return `${di}/${m}/${y}`;
+}
+function diasAtraso(dataPrev) {
+  if (!dataPrev) return 0;
+  const prev = new Date(dataPrev); const hoje = new Date(TODAY);
+  const diff = Math.floor((hoje - prev) / 86400000);
+  return diff > 0 ? diff : 0;
+}
+function statusEmp(emp) {
+  if (emp.data_real_devolucao) return 'entregue';
+  if (diasAtraso(emp.data_devolucao) > 0) return 'atrasado';
+  return 'em_andamento';
+}
+function badgeStatus(s) {
+  const map = {
+    'disponível': ['badge-green','Disponível'],
+    'emprestado': ['badge-orange','Emprestado'],
+    'perdido': ['badge-red','Perdido'],
+    'danificado': ['badge-gray','Danificado'],
+    'entregue': ['badge-green','Entregue'],
+    'atrasado': ['badge-red','Em Atraso'],
+    'em_andamento': ['badge-blue','Em Andamento'],
+  };
+  const [cls, label] = map[s] || ['badge-gray', s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+function addDays(d, n) {
+  const dt = new Date(d); dt.setDate(dt.getDate() + n); return dt.toISOString().split('T')[0];
+}
+function getTurmas() {
+  return [...new Set(state.alunos.map(a => a.turma).filter(Boolean))].sort();
+}
+
+// ============================================================
+// API
+// ============================================================
+async function apiFetch(path='', opts={}) {
+  try {
+    const res = await fetch(API_BASE + path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch(e) {
+    console.warn('API error:', e); throw e;
+  }
+}
+
+async function loadAll() {
+  document.getElementById('apiStatus').textContent = '⏳ Carregando...';
+  try {
+    const data = await apiFetch();
+    const rows = Array.isArray(data) ? data : [];
+    state.alunos = rows.filter(r => r.tipo === 'aluno');
+    state.livros = rows.filter(r => r.tipo === 'livro');
+    state.emprestimos = rows.filter(r => r.tipo === 'emprestimo' || r.id_emprestimo);
+    // load planner from localStorage as fallback
+    const saved = localStorage.getItem('bml_planner');
+    if (saved) state.planner = JSON.parse(saved);
+    state.loaded = true;
+    document.getElementById('apiStatus').textContent = '⚡ Conectado';
+    renderAll();
+  } catch(e) {
+    document.getElementById('apiStatus').textContent = '⚠️ Offline';
+    state.loaded = true;
+    renderAll();
+    toast('Modo offline: dados locais', 'error');
+  }
+}
+
+async function apiCreate(obj) {
+  return await apiFetch('', { method: 'POST', body: JSON.stringify({ data: obj }) });
+}
+async function apiUpdate(col, val, obj) {
+  return await apiFetch(`/${encodeURIComponent(col)}/${encodeURIComponent(val)}`, { method: 'PATCH', body: JSON.stringify({ data: obj }) });
+}
+async function apiDelete(col, val) {
+  return await apiFetch(`/${encodeURIComponent(col)}/${encodeURIComponent(val)}`, { method: 'DELETE' });
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick').includes("'" + page + "'")) n.classList.add('active');
+  });
+  const titles = { dashboard: 'Dashboard', retirada: 'Retirada', livros: 'Livros', alunos: 'Alunos' };
+  document.getElementById('pageTitle').textContent = titles[page] || page;
+  if (page === 'retirada') populateRetiradaSelects();
+  if (page === 'alunos') populateAlunosSelects();
+}
+
+// ============================================================
+// RENDER ALL
+// ============================================================
+function renderAll() {
+  renderMetrics();
+  renderFinanceiro();
+  renderTopLivros();
+  renderRankingTurmas();
+  renderCalendar();
+  renderTabelaLivros();
+  renderChartMultas();
+}
+
+// ============================================================
+// METRICS
+// ============================================================
+function renderMetrics() {
+  const total_alunos = state.alunos.length;
+  const total_livros = state.livros.length;
+  const empAtivos = state.emprestimos.filter(e => !e.data_real_devolucao);
+  const total_emprestados = empAtivos.length;
+  const total_disponiveis = state.livros.filter(l => l.status === 'disponível').length;
+  const total_atrasos = empAtivos.filter(e => diasAtraso(e.data_devolucao) > 0).length;
+
+  document.getElementById('metricsGrid').innerHTML = [
+    { label: 'Total de Alunos', value: total_alunos, cls: 'green', sub: 'cadastrados' },
+    { label: 'Total de Livros', value: total_livros, cls: 'green', sub: 'no acervo' },
+    { label: 'Livros Emprestados', value: total_emprestados, cls: 'orange', sub: 'em aberto' },
+    { label: 'Livros Disponíveis', value: total_disponiveis, cls: 'green', sub: 'para retirada' },
+    { label: 'Atrasos Ativos', value: total_atrasos, cls: 'red', sub: 'pendentes' },
+  ].map(m => `
+    <div class="metric-card ${m.cls}">
+      <div class="m-label">${m.label}</div>
+      <div class="m-value">${m.value}</div>
+      <div class="m-sub">${m.sub}</div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// FINANCEIRO
+// ============================================================
+function calcMulta(emp) {
+  const dias = emp.data_real_devolucao
+    ? Math.max(0, Math.floor((new Date(emp.data_real_devolucao) - new Date(emp.data_devolucao)) / 86400000))
+    : diasAtraso(emp.data_devolucao);
+  return dias;
+}
+function renderFinanceiro() {
+  const hoje = new Date();
+  const mesAtual = hoje.getMonth(); const anoAtual = hoje.getFullYear();
+
+  let totalGerado = 0, totalPago = 0, pendente = 0, alunosComAtraso = new Set(), valorMes = 0, valorAno = 0;
+  state.emprestimos.forEach(e => {
+    const dias = calcMulta(e);
+    const multa = dias * 1;
+    totalGerado += multa;
+    const pago = parseFloat(e.multa_paga || 0);
+    totalPago += pago;
+    if (multa > pago) { pendente += (multa - pago); alunosComAtraso.add(e.numero_aluno); }
+
+    const dt = new Date(e.data_devolucao || e.data_retirada);
+    if (!isNaN(dt)) {
+      if (dt.getMonth() === mesAtual && dt.getFullYear() === anoAtual) valorMes += pago;
+      if (dt.getFullYear() === anoAtual) valorAno += pago;
+    }
+  });
+
+  document.getElementById('finGrid').innerHTML = [
+    { label: 'Total Gerado', value: `R$ ${totalGerado.toFixed(2)}`, cls: 'brown' },
+    { label: 'Total Pago', value: `R$ ${totalPago.toFixed(2)}`, cls: 'green' },
+    { label: 'Pendente', value: `R$ ${pendente.toFixed(2)}`, cls: 'red' },
+    { label: 'Alunos em Atraso', value: alunosComAtraso.size, cls: 'orange' },
+    { label: 'Arrecadado Mês', value: `R$ ${valorMes.toFixed(2)}`, cls: 'green' },
+    { label: 'Arrecadado Ano', value: `R$ ${valorAno.toFixed(2)}`, cls: 'green' },
+  ].map(m => `<div class="metric-card ${m.cls}"><div class="m-label">${m.label}</div><div class="m-value" style="font-size:18px;">${m.value}</div></div>`).join('');
+}
+
+function renderChartMultas() {
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const gerado = Array(12).fill(0); const pago = Array(12).fill(0);
+  const ano = new Date().getFullYear();
+
+  state.emprestimos.forEach(e => {
+    const dt = new Date(e.data_retirada || e.data_devolucao);
+    if (!isNaN(dt) && dt.getFullYear() === ano) {
+      const m = dt.getMonth();
+      gerado[m] += calcMulta(e) * 1;
+      pago[m] += parseFloat(e.multa_paga || 0);
+    }
+  });
+
+  const ctx = document.getElementById('chartMultas').getContext('2d');
+  if (chartMultas) chartMultas.destroy();
+  chartMultas = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: meses,
+      datasets: [
+        { label: 'Gerado', data: gerado, backgroundColor: 'rgba(184,74,27,0.5)', borderColor: '#B84A1B', borderWidth: 1 },
+        { label: 'Pago', data: pago, backgroundColor: 'rgba(47,82,51,0.5)', borderColor: '#2F5233', borderWidth: 1 },
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+// ============================================================
+// TOP LIVROS
+// ============================================================
+function renderTopLivros() {
+  const counts = {};
+  state.emprestimos.forEach(e => {
+    counts[e.numero_livro] = (counts[e.numero_livro] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,10);
+  if (!sorted.length) { document.getElementById('topLivros').innerHTML = '<div class="empty"><p>Sem dados</p></div>'; return; }
+  document.getElementById('topLivros').innerHTML = sorted.map(([num, qtd], i) => {
+    const livro = state.livros.find(l => l.numero_livro === num);
+    const titulo = livro ? livro.titulo : `Livro ${num}`;
+    const pct = Math.round(qtd / sorted[0][1] * 100);
+    return `<div style="margin-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">
+        <span><strong>${i+1}.</strong> ${titulo}</span>
+        <span style="color:var(--verde-escuro); font-weight:600;">${qtd}x</span>
+      </div>
+      <div style="background:var(--bege); border-radius:4px; height:6px;">
+        <div style="width:${pct}%; background:var(--verde-escuro); height:6px; border-radius:4px;"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// RANKING TURMAS
+// ============================================================
+function renderRankingTurmas() {
+  const turmas = {};
+  state.emprestimos.forEach(e => {
+    const aluno = state.alunos.find(a => a.numero_aluno === e.numero_aluno);
+    const turma = aluno ? aluno.turma : 'Desconhecida';
+    if (!turmas[turma]) turmas[turma] = { emprestimos: 0, atrasos: 0 };
+    turmas[turma].emprestimos++;
+    if (diasAtraso(e.data_devolucao) > 0 && !e.data_real_devolucao) turmas[turma].atrasos++;
+  });
+  const sorted = Object.entries(turmas).sort((a,b) => a[1].atrasos - b[1].atrasos);
+  if (!sorted.length) { document.getElementById('rankingTurmas').innerHTML = '<div class="empty"><p>Sem dados</p></div>'; return; }
+  document.getElementById('rankingTurmas').innerHTML = `
+    <table><thead><tr><th>Turma</th><th>Empréstimos</th><th>Atrasos</th></tr></thead>
+    <tbody>${sorted.map(([t, d]) => `<tr><td><strong>${t}</strong></td><td>${d.emprestimos}</td>
+      <td>${d.atrasos > 0 ? `<span class="badge badge-red">${d.atrasos}</span>` : '<span class="badge badge-green">0</span>'}</td></tr>`).join('')}</tbody></table>`;
+}
+
+// ============================================================
+// CALENDAR / PLANNER
+// ============================================================
+function calNav(dir) {
+  if (dir === 0) state.calDate = new Date();
+  else { state.calDate.setMonth(state.calDate.getMonth() + dir); }
+  renderCalendar();
+}
+function renderCalendar() {
+  const d = state.calDate; const y = d.getFullYear(); const m = d.getMonth();
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  document.getElementById('calMonthYear').textContent = `${meses[m]} ${y}`;
+  const first = new Date(y, m, 1).getDay();
+  const days = new Date(y, m+1, 0).getDate();
+  const key = `${y}-${String(m+1).padStart(2,'0')}`;
+  const notes = state.planner[key] || {};
+  let html = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => `<div class="cal-day-header">${d}</div>`).join('');
+  for (let i = 0; i < first; i++) html += `<div class="cal-day other-month"></div>`;
+  for (let day = 1; day <= days; day++) {
+    const dk = String(day).padStart(2,'0'); const isToday = `${y}-${String(m+1).padStart(2,'0')}-${dk}` === TODAY;
+    const note = notes[dk] || '';
+    html += `<div class="cal-day ${isToday ? 'today' : ''} ${note ? 'has-note' : ''}" onclick="editCalDay('${key}','${dk}','${note.replace(/'/g,"\\'")}')">
+      <div class="cal-day-num">${day}</div>
+      ${note ? `<div class="cal-note">${note.substring(0,40)}</div>` : ''}
+    </div>`;
+  }
+  document.getElementById('calGrid').innerHTML = html;
+}
+function editCalDay(key, day, cur) {
+  openModal('Anotação do Dia ' + parseInt(day), `
+    <div class="form-group"><label>Anotação</label>
+    <textarea id="calNoteInput" rows="4" style="border:1px solid var(--border-strong);border-radius:7px;padding:8px;width:100%;font-size:13px;">${cur}</textarea></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn-primary" onclick="saveCalNote('${key}','${day}')">Salvar</button>
+      <button class="btn-secondary" onclick="deleteCalNote('${key}','${day}')">Excluir</button>
+      <button class="btn-secondary" onclick="closeModalFn()">Cancelar</button>
+    </div>`);
+}
+function saveCalNote(key, day) {
+  const v = document.getElementById('calNoteInput').value.trim();
+  if (!state.planner[key]) state.planner[key] = {};
+  state.planner[key][day] = v;
+  localStorage.setItem('bml_planner', JSON.stringify(state.planner));
+  closeModalFn(); renderCalendar(); toast('Anotação salva!');
+}
+function deleteCalNote(key, day) {
+  if (state.planner[key]) delete state.planner[key][day];
+  localStorage.setItem('bml_planner', JSON.stringify(state.planner));
+  closeModalFn(); renderCalendar(); toast('Anotação excluída');
+}
+
+// ============================================================
+// RETIRADA
+// ============================================================
+function populateRetiradaSelects() {
+  const turmas = getTurmas();
+  const sel = document.getElementById('ret_turma');
+  sel.innerHTML = '<option value="">Selecione a turma...</option>' + turmas.map(t => `<option value="${t}">${t}</option>`).join('');
+  document.getElementById('ret_data_retirada').value = TODAY;
+  document.getElementById('ret_data_devolucao').value = addDays(TODAY, 14);
+}
+function filtrarAlunosPorTurma() {
+  const turma = document.getElementById('ret_turma').value;
+  const alunos = state.alunos.filter(a => a.turma === turma).sort((a,b) => a.nome.localeCompare(b.nome));
+  const sel = document.getElementById('ret_aluno');
+  sel.innerHTML = '<option value="">Selecione o aluno...</option>' + alunos.map(a => `<option value="${a.numero_aluno}">${a.nome}</option>`).join('');
+  document.getElementById('ret_num_aluno').value = '';
+  document.getElementById('alertRetirada').innerHTML = '';
+  document.getElementById('historicoAlunoRetirada').innerHTML = '<div class="empty"><div class="empty-icon">📋</div><p>Selecione um aluno</p></div>';
+}
+function carregarDadosAluno() {
+  const num = document.getElementById('ret_aluno').value;
+  if (!num) return;
+  document.getElementById('ret_num_aluno').value = num;
+  const empAberto = state.emprestimos.find(e => e.numero_aluno === num && !e.data_real_devolucao);
+  if (empAberto) {
+    const livro = state.livros.find(l => l.numero_livro === empAberto.numero_livro);
+    document.getElementById('alertRetirada').innerHTML = `<div class="alert alert-warning">⚠️ Aluno possui empréstimo em aberto: <strong>${livro ? livro.titulo : empAberto.numero_livro}</strong> — previsto para ${fmtDate(empAberto.data_devolucao)}</div>`;
+  } else {
+    document.getElementById('alertRetirada').innerHTML = `<div class="alert alert-success">✅ Aluno sem empréstimos em aberto</div>`;
+  }
+  renderHistoricoAluno(num, 'historicoAlunoRetirada');
+}
+function buscarLivro(num) {
+  if (!num) { document.getElementById('ret_titulo_livro').value = ''; document.getElementById('ret_autor_livro').value = ''; document.getElementById('ret_status_livro').value = ''; return; }
+  const livro = state.livros.find(l => l.numero_livro === num.trim());
+  if (livro) {
+    document.getElementById('ret_titulo_livro').value = livro.titulo;
+    document.getElementById('ret_autor_livro').value = livro.autor;
+    document.getElementById('ret_status_livro').value = livro.status;
+  } else {
+    document.getElementById('ret_titulo_livro').value = 'Não encontrado';
+    document.getElementById('ret_autor_livro').value = '';
+    document.getElementById('ret_status_livro').value = '';
+  }
+}
+async function registrarRetirada() {
+  const numAluno = document.getElementById('ret_num_aluno').value;
+  const numLivro = document.getElementById('ret_num_livro').value.trim();
+  const dataRet = document.getElementById('ret_data_retirada').value;
+  const dataDev = document.getElementById('ret_data_devolucao').value;
+  const anterior = document.getElementById('ret_livro_anterior').value;
+
+  if (!numAluno || !numLivro || !dataRet || !dataDev) { toast('Preencha todos os campos obrigatórios', 'error'); return; }
+  const livro = state.livros.find(l => l.numero_livro === numLivro);
+  if (!livro) { toast('Livro não encontrado', 'error'); return; }
+  if (livro.status !== 'disponível') { toast('Livro não está disponível', 'error'); return; }
+
+  // Encerrar empréstimo anterior
+  if (anterior === 'sim') {
+    const empAberto = state.emprestimos.find(e => e.numero_aluno === numAluno && !e.data_real_devolucao);
+    if (empAberto) {
+      empAberto.data_real_devolucao = TODAY;
+      const diasAt = calcMulta(empAberto);
+      empAberto.multa = diasAt;
+      try { await apiUpdate('id_emprestimo', empAberto.id_emprestimo, { data_real_devolucao: TODAY, multa: diasAt }); } catch(e) {}
+      const livroAnt = state.livros.find(l => l.numero_livro === empAberto.numero_livro);
+      if (livroAnt) {
+        livroAnt.status = 'disponível';
+        try { await apiUpdate('numero_livro', livroAnt.numero_livro, { status: 'disponível' }); } catch(e) {}
+      }
+    }
+  }
+
+  const novoEmp = { tipo: 'emprestimo', id_emprestimo: genEmpId(), numero_aluno: numAluno, numero_livro: numLivro, data_retirada: dataRet, data_devolucao: dataDev, multa: 0, multa_paga: 0, data_real_devolucao: '' };
+  state.emprestimos.push(novoEmp);
+  livro.status = 'emprestado';
+  try { await apiCreate(novoEmp); await apiUpdate('numero_livro', numLivro, { status: 'emprestado' }); } catch(e) { toast('Salvo localmente (offline)', 'error'); }
+
+  toast('Retirada registrada com sucesso!');
+  document.getElementById('ret_num_livro').value = '';
+  buscarLivro('');
+  renderAll();
+  renderHistoricoAluno(numAluno, 'historicoAlunoRetirada');
+}
+
+function renderHistoricoAluno(numAluno, container) {
+  const emps = state.emprestimos.filter(e => e.numero_aluno === numAluno).sort((a,b) => (b.data_retirada||'').localeCompare(a.data_retirada||''));
+  if (!emps.length) { document.getElementById(container).innerHTML = '<div class="empty"><p>Nenhum empréstimo encontrado</p></div>'; return; }
+  document.getElementById(container).innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Livro</th><th>Retirada</th><th>Prev. Entrega</th><th>Entregue em</th><th>Situação</th><th>Multa</th></tr></thead>
+      <tbody>${emps.map(e => {
+        const livro = state.livros.find(l => l.numero_livro === e.numero_livro);
+        const st = statusEmp(e);
+        const dias = calcMulta(e); const multa = dias * 1;
+        return `<tr><td>${livro ? livro.titulo : e.numero_livro}</td><td>${fmtDate(e.data_retirada)}</td><td>${fmtDate(e.data_devolucao)}</td>
+          <td>${e.data_real_devolucao ? fmtDate(e.data_real_devolucao) : '-'}</td>
+          <td>${badgeStatus(st)}</td>
+          <td>${multa > 0 ? `<span style="color:#C0392B; font-weight:600;">R$ ${multa.toFixed(2)}</span>` : '-'}</td></tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+}
+
+// ============================================================
+// LIVROS
+// ============================================================
+async function cadastrarLivro() {
+  const numero = document.getElementById('liv_numero').value.trim();
+  const titulo = document.getElementById('liv_titulo').value.trim();
+  const autor = document.getElementById('liv_autor').value.trim();
+  const categoria = document.getElementById('liv_categoria').value.trim();
+  const local = document.getElementById('liv_local').value.trim() || 'Biblioteca';
+
+  if (!numero || !titulo || !autor) { toast('Preencha número, título e autor', 'error'); return; }
+  if (state.livros.find(l => l.numero_livro === numero)) { toast('Número de livro já cadastrado', 'error'); return; }
+
+  const novo = { tipo: 'livro', numero_livro: numero, titulo, autor, categoria, local, status: 'disponível' };
+  state.livros.push(novo);
+  try { await apiCreate(novo); } catch(e) { toast('Salvo localmente', 'error'); }
+  toast('Livro cadastrado com sucesso!');
+  ['liv_numero','liv_titulo','liv_autor','liv_categoria','liv_local'].forEach(id => document.getElementById(id).value = '');
+  renderTabelaLivros(); renderMetrics();
+}
+
+function filtrarLivros() {
+  const q = document.getElementById('buscaLivro').value.toLowerCase();
+  const st = document.getElementById('filtroStatus').value;
+  const livros = state.livros.filter(l =>
+    (!q || l.numero_livro.includes(q) || (l.titulo||'').toLowerCase().includes(q) || (l.autor||'').toLowerCase().includes(q)) &&
+    (!st || l.status === st)
+  );
+  renderTabelaLivros(livros);
+}
+
+function renderTabelaLivros(livros) {
+  const list = livros || state.livros;
+  document.getElementById('tabelaLivros').innerHTML = list.length === 0
+    ? '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px;">Nenhum livro encontrado</td></tr>'
+    : list.map(l => `<tr>
+        <td><strong>${l.numero_livro}</strong></td>
+        <td>${l.titulo}</td><td>${l.autor||'-'}</td><td>${l.categoria||'-'}</td><td>${l.local||'Biblioteca'}</td>
+        <td>${badgeStatus(l.status)}</td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button class="btn-sm" onclick="editarLivroModal('${l.numero_livro}')">Editar</button>
+            <button class="btn-warning" onclick="mudarStatusLivro('${l.numero_livro}','perdido')">Perdido</button>
+            <button class="btn-danger" onclick="mudarStatusLivro('${l.numero_livro}','danificado')">Danificado</button>
+            <button class="btn-sm" style="background:var(--laranja);" onclick="historicoLivroModal('${l.numero_livro}')">Histórico</button>
+          </div>
+        </td>
+      </tr>`).join('');
+}
+
+function editarLivroModal(num) {
+  const l = state.livros.find(x => x.numero_livro === num);
+  if (!l) return;
+  openModal(`Editar Livro — ${l.numero_livro}`, `
+    <div class="form-grid">
+      <div class="form-group"><label>Título</label><input id="edit_titulo" value="${l.titulo||''}"></div>
+      <div class="form-group"><label>Autor</label><input id="edit_autor" value="${l.autor||''}"></div>
+      <div class="form-group"><label>Categoria</label><input id="edit_categoria" value="${l.categoria||''}"></div>
+      <div class="form-group"><label>Local</label><input id="edit_local" value="${l.local||'Biblioteca'}"></div>
+    </div>
+    <div style="margin-top:14px;"><button class="btn-primary" onclick="salvarEdicaoLivro('${num}')">Salvar</button></div>`);
+}
+async function salvarEdicaoLivro(num) {
+  const l = state.livros.find(x => x.numero_livro === num);
+  if (!l) return;
+  l.titulo = document.getElementById('edit_titulo').value;
+  l.autor = document.getElementById('edit_autor').value;
+  l.categoria = document.getElementById('edit_categoria').value;
+  l.local = document.getElementById('edit_local').value;
+  try { await apiUpdate('numero_livro', num, { titulo: l.titulo, autor: l.autor, categoria: l.categoria, local: l.local }); } catch(e) {}
+  closeModalFn(); renderTabelaLivros(); toast('Livro atualizado!');
+}
+async function mudarStatusLivro(num, novoStatus) {
+  const l = state.livros.find(x => x.numero_livro === num);
+  if (!l) return;
+  l.status = novoStatus;
+  try { await apiUpdate('numero_livro', num, { status: novoStatus }); } catch(e) {}
+  renderTabelaLivros(); renderMetrics(); toast(`Status alterado para ${novoStatus}`);
+}
+function historicoLivroModal(num) {
+  const livro = state.livros.find(l => l.numero_livro === num);
+  const emps = state.emprestimos.filter(e => e.numero_livro === num).sort((a,b) => (b.data_retirada||'').localeCompare(a.data_retirada||''));
+  const rows = emps.map(e => {
+    const aluno = state.alunos.find(a => a.numero_aluno === e.numero_aluno);
+    return `<tr><td>${aluno ? aluno.nome : e.numero_aluno}</td><td>${aluno ? aluno.turma : '-'}</td>
+      <td>${fmtDate(e.data_retirada)}</td><td>${fmtDate(e.data_real_devolucao || '')}</td><td>${badgeStatus(statusEmp(e))}</td></tr>`;
+  }).join('');
+  openModal(`Histórico — ${livro ? livro.titulo : num}`, `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Aluno</th><th>Turma</th><th>Retirada</th><th>Devolvido</th><th>Status</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">Nenhum histórico</td></tr>'}</tbody>
+    </table></div>`);
+}
+
+// ============================================================
+// ALUNOS
+// ============================================================
+function populateAlunosSelects() {
+  const turmas = getTurmas();
+  const sel = document.getElementById('selTurma');
+  sel.innerHTML = '<option value="">Selecione uma turma...</option>' + turmas.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+async function cadastrarAluno() {
+  const nome = document.getElementById('alu_nome').value.trim();
+  const turma = document.getElementById('alu_turma').value.trim();
+  if (!nome || !turma) { toast('Preencha nome e turma', 'error'); return; }
+  const numero = genId8();
+  document.getElementById('alu_numero').value = numero;
+  const novo = { tipo: 'aluno', numero_aluno: numero, nome, turma };
+  state.alunos.push(novo);
+  try { await apiCreate(novo); } catch(e) { toast('Salvo localmente', 'error'); }
+  toast('Aluno cadastrado!');
+  document.getElementById('alu_nome').value = ''; document.getElementById('alu_turma').value = '';
+  populateAlunosSelects(); renderMetrics();
+}
+function carregarTurma() {
+  const turma = document.getElementById('selTurma').value;
+  if (!turma) { document.getElementById('listaTurmaAlunos').innerHTML = '<div class="empty"><div class="empty-icon">👥</div><p>Selecione uma turma</p></div>'; return; }
+  const alunos = state.alunos.filter(a => a.turma === turma).sort((a,b) => a.nome.localeCompare(b.nome));
+  document.getElementById('listaTurmaAlunos').innerHTML = `
+    <div style="margin-bottom:10px; font-size:13px; color:var(--text-secondary);">Total: <strong>${alunos.length} alunos</strong></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Nº</th><th>Nome</th><th>Turma</th><th>Ações</th></tr></thead>
+      <tbody>${alunos.map(a => `<tr>
+        <td><code style="font-size:11px;">${a.numero_aluno}</code></td>
+        <td>${a.nome}</td><td>${a.turma}</td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button class="btn-sm" onclick="editarAlunoModal('${a.numero_aluno}')">Editar</button>
+            <button class="btn-sm" style="background:var(--laranja);" onclick="verHistoricoAlunoModal('${a.numero_aluno}')">Histórico</button>
+            <button class="btn-danger" onclick="excluirAluno('${a.numero_aluno}')">Excluir</button>
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+async function renomearTurma() {
+  const turmaAtual = document.getElementById('selTurma').value;
+  const novoNome = document.getElementById('novoNomeTurma').value.trim();
+  if (!turmaAtual || !novoNome) { toast('Selecione a turma e informe o novo nome', 'error'); return; }
+  state.alunos.filter(a => a.turma === turmaAtual).forEach(a => { a.turma = novoNome; });
+  try {
+    for (const a of state.alunos.filter(a2 => a2.turma === novoNome)) {
+      await apiUpdate('numero_aluno', a.numero_aluno, { turma: novoNome });
+    }
+  } catch(e) {}
+  toast(`Turma renomeada para ${novoNome}`);
+  populateAlunosSelects(); carregarTurma();
+}
+function editarAlunoModal(num) {
+  const a = state.alunos.find(x => x.numero_aluno === num);
+  if (!a) return;
+  openModal(`Editar Aluno — ${a.nome}`, `
+    <div class="form-grid">
+      <div class="form-group"><label>Nome</label><input id="edit_alu_nome" value="${a.nome}"></div>
+      <div class="form-group"><label>Turma</label><input id="edit_alu_turma" value="${a.turma}"></div>
+    </div>
+    <div style="margin-top:14px;"><button class="btn-primary" onclick="salvarEdicaoAluno('${num}')">Salvar</button></div>`);
+}
+async function salvarEdicaoAluno(num) {
+  const a = state.alunos.find(x => x.numero_aluno === num);
+  if (!a) return;
+  a.nome = document.getElementById('edit_alu_nome').value;
+  a.turma = document.getElementById('edit_alu_turma').value;
+  try { await apiUpdate('numero_aluno', num, { nome: a.nome, turma: a.turma }); } catch(e) {}
+  closeModalFn(); carregarTurma(); toast('Aluno atualizado!');
+}
+async function excluirAluno(num) {
+  if (!confirm('Excluir este aluno? O histórico será preservado.')) return;
+  state.alunos = state.alunos.filter(a => a.numero_aluno !== num);
+  try { await apiDelete('numero_aluno', num); } catch(e) {}
+  carregarTurma(); renderMetrics(); toast('Aluno excluído');
+}
+function verHistoricoAlunoModal(num) {
+  const aluno = state.alunos.find(a => a.numero_aluno === num);
+  const emps = state.emprestimos.filter(e => e.numero_aluno === num);
+  const totalMultas = emps.reduce((s,e) => s + calcMulta(e), 0);
+  const totalPago = emps.reduce((s,e) => s + parseFloat(e.multa_paga||0), 0);
+  const rows = emps.map(e => {
+    const livro = state.livros.find(l => l.numero_livro === e.numero_livro);
+    return `<tr><td>${livro ? livro.titulo : e.numero_livro}</td><td>${fmtDate(e.data_retirada)}</td>
+      <td>${fmtDate(e.data_devolucao)}</td><td>${badgeStatus(statusEmp(e))}</td>
+      <td>R$ ${(calcMulta(e)*1).toFixed(2)}</td></tr>`;
+  }).join('');
+  openModal(`Histórico — ${aluno ? aluno.nome : num}`, `
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+      <div class="metric-card brown" style="flex:1;min-width:100px;"><div class="m-label">Total Multas</div><div class="m-value" style="font-size:16px;">R$ ${totalMultas.toFixed(2)}</div></div>
+      <div class="metric-card green" style="flex:1;min-width:100px;"><div class="m-label">Pago</div><div class="m-value" style="font-size:16px;">R$ ${totalPago.toFixed(2)}</div></div>
+      <div class="metric-card red" style="flex:1;min-width:100px;"><div class="m-label">Pendente</div><div class="m-value" style="font-size:16px;">R$ ${(totalMultas-totalPago).toFixed(2)}</div></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Livro</th><th>Retirada</th><th>Devolução</th><th>Status</th><th>Multa</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">Sem empréstimos</td></tr>'}</tbody>
+    </table></div>`);
+}
+
+// ============================================================
+// GLOBAL SEARCH
+// ============================================================
+function globalSearchFn(q) {
+  const el = document.getElementById('globalResults');
+  if (!q || q.length < 2) { el.style.display = 'none'; return; }
+  const ql = q.toLowerCase();
+  const results = [];
+  state.livros.filter(l => l.titulo.toLowerCase().includes(ql) || l.numero_livro.includes(ql)).slice(0,4).forEach(l => {
+    results.push({ type: 'Livro', name: l.titulo, sub: `Nº ${l.numero_livro} — ${l.status}`, action: `navigate('livros')` });
+  });
+  state.alunos.filter(a => a.nome.toLowerCase().includes(ql) || a.numero_aluno.includes(ql)).slice(0,4).forEach(a => {
+    results.push({ type: 'Aluno', name: a.nome, sub: `Turma ${a.turma} — Nº ${a.numero_aluno}`, action: `navigate('alunos')` });
+  });
+  getTurmas().filter(t => t.toLowerCase().includes(ql)).slice(0,3).forEach(t => {
+    results.push({ type: 'Turma', name: `Turma ${t}`, sub: `${state.alunos.filter(a=>a.turma===t).length} alunos`, action: `navigate('alunos')` });
+  });
+  if (!results.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = results.map(r => `<div class="search-result-item" onclick="${r.action}; document.getElementById('globalSearch').value=''; document.getElementById('globalResults').style.display='none';">
+    <div class="search-result-type">${r.type}</div>
+    <div class="search-result-name">${r.name}</div>
+    <div style="font-size:11px;color:var(--text-muted);">${r.sub}</div>
+  </div>`).join('');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-global-wrap')) document.getElementById('globalResults').style.display = 'none';
+});
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal(title, body) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = body;
+  document.getElementById('modalOverlay').style.display = 'flex';
+}
+function closeModal(e) { if (e.target === document.getElementById('modalOverlay')) closeModalFn(); }
+function closeModalFn() { document.getElementById('modalOverlay').style.display = 'none'; }
+
+// ============================================================
+// EXPORT
+// ============================================================
+function exportarDados(format) {
+  const page = document.querySelector('.page.active').id.replace('page-','');
+  let dados = [], nome = 'export';
+  if (page === 'livros' || page === 'dashboard') { dados = state.livros.map(({tipo,...r}) => r); nome = 'livros'; }
+  else if (page === 'alunos') { dados = state.alunos.map(({tipo,...r}) => r); nome = 'alunos'; }
+  else if (page === 'retirada') { dados = state.emprestimos.map(({tipo,...r}) => r); nome = 'emprestimos'; }
+  else { dados = [...state.livros, ...state.alunos, ...state.emprestimos].map(({tipo,...r})=>({tipo, ...r})); nome = 'todos'; }
+
+  if (format === 'xlsx') {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dados), nome);
+    XLSX.writeFile(wb, `${nome}_${TODAY}.xlsx`);
+  } else if (format === 'csv') {
+    if (!dados.length) { toast('Sem dados para exportar', 'error'); return; }
+    const keys = Object.keys(dados[0]);
+    const csv = [keys.join(','), ...dados.map(r => keys.map(k => `"${(r[k]||'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
+    const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${nome}_${TODAY}.csv`; a.click();
+  }
+  toast(`Exportado como ${format.toUpperCase()}!`);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.getElementById('ret_data_retirada').value = TODAY;
+document.getElementById('ret_data_devolucao').value = addDays(TODAY, 14);
+document.getElementById('ret_data_retirada').addEventListener('change', function() {
+  document.getElementById('ret_data_devolucao').value = addDays(this.value, 14);
+});
+
+loadAll();
+</script>
+</body>
+</html>
