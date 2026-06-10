@@ -299,10 +299,7 @@
 <div id="main">
   <div class="topbar">
     <span class="topbar-title" id="pageTitle">Dashboard</span>
-    <div class="topbar-right">
-      <button class="btn-export" onclick="exportarDados('xlsx')">⬇ Excel</button>
-      <button class="btn-export" onclick="exportarDados('csv')">⬇ CSV</button>
-    </div>
+    <div class="topbar-right"></div>
   </div>
 
   <div class="page-content">
@@ -311,20 +308,21 @@
     <div class="page active" id="page-dashboard">
       <div class="metrics-grid" id="metricsGrid"></div>
 
-      <div class="dash-grid">
-        <!-- Financeiro -->
-        <div class="card">
-          <div class="card-title"><span class="dot"></span>Controle de Multas</div>
-          <div class="fin-grid" id="finGrid"></div>
+      <!-- Planner -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot"></span>Planner Mensal</div>
+        <div class="calendar-header">
+          <strong id="calMonthYear" style="font-size:14px;color:var(--verde-escuro);"></strong>
+          <div class="calendar-nav">
+            <button class="cal-btn" onclick="calNav(-1)">◀</button>
+            <button class="cal-btn" onclick="calNav(0)">Hoje</button>
+            <button class="cal-btn" onclick="calNav(1)">▶</button>
+          </div>
         </div>
-        <!-- Chart multas -->
-        <div class="card">
-          <div class="card-title"><span class="dot"></span>Multas por Mês</div>
-          <canvas id="chartMultas" height="150"></canvas>
-        </div>
+        <div id="calGrid" class="calendar-grid"></div>
       </div>
 
-      <div class="dash-grid" style="margin-top:16px;">
+      <div class="dash-grid">
         <!-- Top livros -->
         <div class="card">
           <div class="card-title"><span class="dot"></span>Top 10 Livros Mais Retirados</div>
@@ -337,18 +335,17 @@
         </div>
       </div>
 
-      <!-- Planner -->
-      <div class="card" style="margin-top:16px;">
-        <div class="card-title"><span class="dot"></span>Planner Mensal</div>
-        <div class="calendar-header">
-          <strong id="calMonthYear" style="font-size:14px;color:var(--verde-escuro);"></strong>
-          <div class="calendar-nav">
-            <button class="cal-btn" onclick="calNav(-1)">◀</button>
-            <button class="cal-btn" onclick="calNav(0)">Hoje</button>
-            <button class="cal-btn" onclick="calNav(1)">▶</button>
-          </div>
+      <div class="dash-grid" style="margin-top:16px;">
+        <!-- Financeiro -->
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Controle de Multas</div>
+          <div class="fin-grid" id="finGrid"></div>
         </div>
-        <div id="calGrid" class="calendar-grid"></div>
+        <!-- Chart multas -->
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Multas por Mês</div>
+          <canvas id="chartMultas" height="150"></canvas>
+        </div>
       </div>
     </div>
 
