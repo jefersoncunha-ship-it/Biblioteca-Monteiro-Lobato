@@ -354,75 +354,103 @@
 
     <!-- ==================== RETIRADA ==================== -->
     <div class="page" id="page-retirada">
-      <div class="card" style="margin-bottom:16px;">
-        <div class="card-title"><span class="dot"></span>Registrar Retirada</div>
-        <div id="alertRetirada"></div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Turma</label>
-            <select id="ret_turma" onchange="filtrarAlunosPorTurma()">
-              <option value="">Selecione a turma...</option>
-            </select>
+
+      <!-- TABS -->
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('retirada')">📖 Registrar Retirada</div>
+        <div class="tab" onclick="switchTab('devolucao')">↩️ Registrar Devolução</div>
+      </div>
+
+      <!-- TAB RETIRADA -->
+      <div class="tab-panel active" id="tab-retirada">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title"><span class="dot"></span>Registrar Retirada</div>
+          <div id="alertRetirada"></div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Turma</label>
+              <select id="ret_turma" onchange="filtrarAlunosPorTurma()">
+                <option value="">Selecione a turma...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Aluno</label>
+              <select id="ret_aluno" onchange="carregarDadosAluno()">
+                <option value="">Selecione o aluno...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Número do Aluno</label>
+              <input type="text" id="ret_num_aluno" readonly placeholder="Gerado automaticamente">
+            </div>
           </div>
-          <div class="form-group">
-            <label>Aluno</label>
-            <select id="ret_aluno" onchange="carregarDadosAluno()">
-              <option value="">Selecione o aluno...</option>
-            </select>
+          <div class="form-grid" style="margin-top:12px;">
+            <div class="form-group">
+              <label>Número do Livro</label>
+              <input type="text" id="ret_num_livro" oninput="buscarLivro(this.value)" placeholder="Digite o número...">
+            </div>
+            <div class="form-group">
+              <label>Título</label>
+              <input type="text" id="ret_titulo_livro" readonly placeholder="Automático">
+            </div>
+            <div class="form-group">
+              <label>Autor</label>
+              <input type="text" id="ret_autor_livro" readonly placeholder="Automático">
+            </div>
+            <div class="form-group">
+              <label>Status do Livro</label>
+              <input type="text" id="ret_status_livro" readonly placeholder="Automático">
+            </div>
           </div>
-          <div class="form-group">
-            <label>Número do Aluno</label>
-            <input type="text" id="ret_num_aluno" readonly placeholder="Gerado automaticamente">
+          <div class="form-grid" style="margin-top:12px;">
+            <div class="form-group">
+              <label>Data de Retirada</label>
+              <input type="date" id="ret_data_retirada">
+            </div>
+            <div class="form-group">
+              <label>Data Prevista de Entrega</label>
+              <input type="date" id="ret_data_devolucao">
+            </div>
+          </div>
+          <div style="margin-top:16px;">
+            <button class="btn-primary" onclick="registrarRetirada()">✅ Registrar Retirada</button>
           </div>
         </div>
-        <div class="form-grid" style="margin-top:12px;">
-          <div class="form-group">
-            <label>Número do Livro</label>
-            <input type="text" id="ret_num_livro" oninput="buscarLivro(this.value)" placeholder="Digite o número...">
+
+        <!-- Histórico do aluno -->
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Histórico do Aluno</div>
+          <div id="historicoAlunoRetirada">
+            <div class="empty"><div class="empty-icon">📋</div><p>Selecione um aluno para ver o histórico</p></div>
           </div>
-          <div class="form-group">
-            <label>Título</label>
-            <input type="text" id="ret_titulo_livro" readonly placeholder="Automático">
-          </div>
-          <div class="form-group">
-            <label>Autor</label>
-            <input type="text" id="ret_autor_livro" readonly placeholder="Automático">
-          </div>
-          <div class="form-group">
-            <label>Status do Livro</label>
-            <input type="text" id="ret_status_livro" readonly placeholder="Automático">
-          </div>
-        </div>
-        <div class="form-grid" style="margin-top:12px;">
-          <div class="form-group">
-            <label>Data de Retirada</label>
-            <input type="date" id="ret_data_retirada">
-          </div>
-          <div class="form-group">
-            <label>Data Prevista de Entrega</label>
-            <input type="date" id="ret_data_devolucao">
-          </div>
-          <div class="form-group">
-            <label>Livro anterior foi entregue?</label>
-            <select id="ret_livro_anterior">
-              <option value="">N/A</option>
-              <option value="sim">Sim</option>
-              <option value="nao">Não</option>
-            </select>
-          </div>
-        </div>
-        <div style="margin-top:16px;">
-          <button class="btn-primary" onclick="registrarRetirada()">✅ Registrar Retirada</button>
         </div>
       </div>
 
-      <!-- Histórico do aluno -->
-      <div class="card">
-        <div class="card-title"><span class="dot"></span>Histórico do Aluno</div>
-        <div id="historicoAlunoRetirada">
-          <div class="empty"><div class="empty-icon">📋</div><p>Selecione um aluno para ver o histórico</p></div>
+      <!-- TAB DEVOLUÇÃO -->
+      <div class="tab-panel" id="tab-devolucao">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title"><span class="dot"></span>Registrar Devolução</div>
+          <div id="alertDevolucao"></div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Turma</label>
+              <select id="dev_turma" onchange="filtrarAlunosDevolucao()">
+                <option value="">Selecione a turma...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Aluno</label>
+              <select id="dev_aluno" onchange="carregarEmprestimosAbertos()">
+                <option value="">Selecione o aluno...</option>
+              </select>
+            </div>
+          </div>
+          <div id="emprestimosAbertos" style="margin-top:16px;">
+            <div class="empty"><div class="empty-icon">↩️</div><p>Selecione um aluno para ver os empréstimos em aberto</p></div>
+          </div>
         </div>
       </div>
+
     </div>
 
     <!-- ==================== LIVROS ==================== -->
@@ -870,12 +898,123 @@ function deleteCalNote(key, day) {
 // ============================================================
 // RETIRADA
 // ============================================================
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
 function populateRetiradaSelects() {
   const turmas = getTurmas();
+  // Tab retirada
   const sel = document.getElementById('ret_turma');
   sel.innerHTML = '<option value="">Selecione a turma...</option>' + turmas.map(t => `<option value="${t}">${t}</option>`).join('');
   document.getElementById('ret_data_retirada').value = TODAY;
   document.getElementById('ret_data_devolucao').value = addDays(TODAY, 14);
+  // Tab devolução
+  const sel2 = document.getElementById('dev_turma');
+  sel2.innerHTML = '<option value="">Selecione a turma...</option>' + turmas.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+function filtrarAlunosDevolucao() {
+  const turma = document.getElementById('dev_turma').value;
+  const alunos = state.alunos.filter(a => a.turma === turma).sort((a,b) => a.nome.localeCompare(b.nome));
+  const sel = document.getElementById('dev_aluno');
+  sel.innerHTML = '<option value="">Selecione o aluno...</option>' + alunos.map(a => `<option value="${a.numero_aluno}">${a.nome}</option>`).join('');
+  document.getElementById('emprestimosAbertos').innerHTML = '<div class="empty"><div class="empty-icon">↩️</div><p>Selecione um aluno</p></div>';
+}
+
+function carregarEmprestimosAbertos() {
+  const numAluno = document.getElementById('dev_aluno').value;
+  if (!numAluno) return;
+  const emps = state.emprestimos.filter(e => e.numero_aluno === numAluno && !e.data_real_devolucao);
+  if (!emps.length) {
+    document.getElementById('emprestimosAbertos').innerHTML = '<div class="alert alert-success">✅ Este aluno não possui empréstimos em aberto.</div>';
+    return;
+  }
+  document.getElementById('emprestimosAbertos').innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Livro</th><th>Retirado em</th><th>Prev. Devolução</th><th>Situação</th><th>Multa</th><th>Ação</th></tr></thead>
+      <tbody>${emps.map(e => {
+        const livro = state.livros.find(l => l.numero_livro === e.numero_livro);
+        const dias = diasAtraso(e.data_devolucao);
+        const multa = dias * 1;
+        const st = dias > 0 ? 'atrasado' : 'em_andamento';
+        return `<tr>
+          <td><strong>${livro ? livro.titulo : e.numero_livro}</strong><br><small style="color:var(--text-muted);">Nº ${e.numero_livro}</small></td>
+          <td>${fmtDate(e.data_retirada)}</td>
+          <td>${fmtDate(e.data_devolucao)}</td>
+          <td>${badgeStatus(st)}</td>
+          <td>${multa > 0 ? `<span style="color:#C0392B;font-weight:600;">R$ ${multa.toFixed(2)}</span>` : '<span style="color:var(--text-muted);">-</span>'}</td>
+          <td>
+            <button class="btn-primary" style="font-size:12px;padding:6px 12px;" onclick="confirmarDevolucao('${e.id_emprestimo}','${numAluno}')">↩️ Devolver</button>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+}
+
+async function confirmarDevolucao(idEmp, numAluno) {
+  const emp = state.emprestimos.find(e => e.id_emprestimo === idEmp);
+  if (!emp) { toast('Empréstimo não encontrado', 'error'); return; }
+
+  const dias = diasAtraso(emp.data_devolucao);
+  const multa = dias * 1;
+  const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
+
+  openModal('Confirmar Devolução', `
+    <div class="alert alert-info" style="margin-bottom:14px;">
+      📖 <strong>${livro ? livro.titulo : emp.numero_livro}</strong><br>
+      Previsto: ${fmtDate(emp.data_devolucao)}<br>
+      ${multa > 0 ? `<span style="color:#C0392B;">⚠️ Multa por atraso: <strong>R$ ${multa.toFixed(2)}</strong> (${dias} dia${dias>1?'s':''})</span>` : '✅ Sem multa'}
+    </div>
+    <div class="form-group" style="margin-bottom:14px;">
+      <label>Data de Devolução</label>
+      <input type="date" id="dev_data_real" value="${TODAY}">
+    </div>
+    ${multa > 0 ? `
+    <div class="form-group" style="margin-bottom:14px;">
+      <label>Multa paga (R$)</label>
+      <input type="number" id="dev_multa_paga" value="${multa.toFixed(2)}" min="0" step="0.01">
+    </div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn-primary" onclick="finalizarDevolucao('${idEmp}','${numAluno}')">✅ Confirmar Devolução</button>
+      <button class="btn-secondary" onclick="closeModalFn()">Cancelar</button>
+    </div>`);
+}
+
+async function finalizarDevolucao(idEmp, numAluno) {
+  const emp = state.emprestimos.find(e => e.id_emprestimo === idEmp);
+  if (!emp) return;
+
+  const dataReal = document.getElementById('dev_data_real').value;
+  const multaPagaEl = document.getElementById('dev_multa_paga');
+  const multaPaga = multaPagaEl ? parseFloat(multaPagaEl.value || 0) : 0;
+
+  // Calcular multa com base na data real informada
+  const diasAt = Math.max(0, Math.floor((new Date(dataReal) - new Date(emp.data_devolucao)) / 86400000));
+  const multaTotal = diasAt * 1;
+
+  // Atualizar estado local
+  emp.data_real_devolucao = dataReal;
+  emp.multa = multaTotal;
+  emp.multa_paga = multaPaga;
+
+  // Livro volta a ficar disponível
+  const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
+  if (livro) livro.status = 'disponível';
+
+  // Salvar na API
+  try {
+    await apiUpdate('id_emprestimo', idEmp, { data_real_devolucao: dataReal, multa: multaTotal, multa_paga: multaPaga });
+    if (livro) await apiUpdate('numero_livro', livro.numero_livro, { status: 'disponível' });
+  } catch(e) { toast('Salvo localmente (offline)', 'error'); }
+
+  closeModalFn();
+  toast('Devolução registrada! Livro disponível novamente. ✅');
+  carregarEmprestimosAbertos();
+  renderAll();
 }
 function filtrarAlunosPorTurma() {
   const turma = document.getElementById('ret_turma').value;
@@ -917,28 +1056,11 @@ async function registrarRetirada() {
   const numLivro = document.getElementById('ret_num_livro').value.trim();
   const dataRet = document.getElementById('ret_data_retirada').value;
   const dataDev = document.getElementById('ret_data_devolucao').value;
-  const anterior = document.getElementById('ret_livro_anterior').value;
 
   if (!numAluno || !numLivro || !dataRet || !dataDev) { toast('Preencha todos os campos obrigatórios', 'error'); return; }
   const livro = state.livros.find(l => l.numero_livro === numLivro);
   if (!livro) { toast('Livro não encontrado', 'error'); return; }
-  if (livro.status !== 'disponível') { toast('Livro não está disponível', 'error'); return; }
-
-  // Encerrar empréstimo anterior
-  if (anterior === 'sim') {
-    const empAberto = state.emprestimos.find(e => e.numero_aluno === numAluno && !e.data_real_devolucao);
-    if (empAberto) {
-      empAberto.data_real_devolucao = TODAY;
-      const diasAt = calcMulta(empAberto);
-      empAberto.multa = diasAt;
-      try { await apiUpdate('id_emprestimo', empAberto.id_emprestimo, { data_real_devolucao: TODAY, multa: diasAt }); } catch(e) {}
-      const livroAnt = state.livros.find(l => l.numero_livro === empAberto.numero_livro);
-      if (livroAnt) {
-        livroAnt.status = 'disponível';
-        try { await apiUpdate('numero_livro', livroAnt.numero_livro, { status: 'disponível' }); } catch(e) {}
-      }
-    }
-  }
+  if (livro.status !== 'disponível') { toast('Livro não está disponível para retirada', 'error'); return; }
 
   const novoEmp = { tipo: 'emprestimo', id_emprestimo: genEmpId(), numero_aluno: numAluno, numero_livro: numLivro, data_retirada: dataRet, data_devolucao: dataDev, multa: 0, multa_paga: 0, data_real_devolucao: '' };
   state.emprestimos.push(novoEmp);
