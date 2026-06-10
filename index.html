@@ -1032,11 +1032,85 @@ function carregarDadosAluno() {
   const empAberto = state.emprestimos.find(e => e.numero_aluno === num && !e.data_real_devolucao);
   if (empAberto) {
     const livro = state.livros.find(l => l.numero_livro === empAberto.numero_livro);
-    document.getElementById('alertRetirada').innerHTML = `<div class="alert alert-warning">⚠️ Aluno possui empréstimo em aberto: <strong>${livro ? livro.titulo : empAberto.numero_livro}</strong> — previsto para ${fmtDate(empAberto.data_devolucao)}</div>`;
+    const dias = diasAtraso(empAberto.data_devolucao);
+    const multa = dias * 1;
+    document.getElementById('alertRetirada').innerHTML = `
+      <div class="alert alert-warning" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          ⚠️ Livro em aberto: <strong>${livro ? livro.titulo : empAberto.numero_livro}</strong> (Nº ${empAberto.numero_livro})<br>
+          <span style="font-size:11px;">Previsto para devolução: ${fmtDate(empAberto.data_devolucao)}
+          ${multa > 0 ? ` &nbsp;|&nbsp; <span style="color:#C0392B;font-weight:600;">Multa: R$ ${multa.toFixed(2)}</span>` : ''}</span>
+        </div>
+        <button class="btn-primary" style="background:var(--marrom); white-space:nowrap; font-size:12px;" onclick="devolverLivroAnterior('${empAberto.id_emprestimo}', '${num}')">
+          ↩️ Devolver este livro
+        </button>
+      </div>`;
   } else {
-    document.getElementById('alertRetirada').innerHTML = `<div class="alert alert-success">✅ Aluno sem empréstimos em aberto</div>`;
+    document.getElementById('alertRetirada').innerHTML = `<div class="alert alert-success">✅ Aluno sem empréstimos em aberto — pode retirar normalmente</div>`;
   }
   renderHistoricoAluno(num, 'historicoAlunoRetirada');
+}
+
+async function devolverLivroAnterior(idEmp, numAluno) {
+  const emp = state.emprestimos.find(e => e.id_emprestimo === idEmp);
+  if (!emp) { toast('Empréstimo não encontrado', 'error'); return; }
+  const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
+  const dias = diasAtraso(emp.data_devolucao);
+  const multa = dias * 1;
+
+  openModal('Devolver Livro Anterior', `
+    <div class="alert alert-info" style="margin-bottom:14px;">
+      📖 <strong>${livro ? livro.titulo : emp.numero_livro}</strong> — Nº ${emp.numero_livro}<br>
+      Retirado em: ${fmtDate(emp.data_retirada)}<br>
+      Previsto para: ${fmtDate(emp.data_devolucao)}<br>
+      ${multa > 0
+        ? `<span style="color:#C0392B; font-weight:600;">⚠️ Multa por atraso: R$ ${multa.toFixed(2)} (${dias} dia${dias>1?'s':''})</span>`
+        : '✅ Sem multa — dentro do prazo'}
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>Data de Devolução</label>
+      <input type="date" id="dev_ant_data" value="${TODAY}">
+    </div>
+    ${multa > 0 ? `
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>Multa paga (R$)</label>
+      <input type="number" id="dev_ant_multa_paga" value="${multa.toFixed(2)}" min="0" step="0.01">
+    </div>` : `<input type="hidden" id="dev_ant_multa_paga" value="0">`}
+    <div style="display:flex; gap:8px; margin-top:4px;">
+      <button class="btn-primary" onclick="confirmarDevolucaoAnterior('${idEmp}','${numAluno}')">✅ Confirmar Devolução</button>
+      <button class="btn-secondary" onclick="closeModalFn()">Cancelar</button>
+    </div>`);
+}
+
+async function confirmarDevolucaoAnterior(idEmp, numAluno) {
+  const emp = state.emprestimos.find(e => e.id_emprestimo === idEmp);
+  if (!emp) return;
+
+  const dataReal = document.getElementById('dev_ant_data').value;
+  const multaPaga = parseFloat(document.getElementById('dev_ant_multa_paga').value || 0);
+  const diasAt = Math.max(0, Math.floor((new Date(dataReal) - new Date(emp.data_devolucao)) / 86400000));
+  const multaTotal = diasAt * 1;
+
+  // Atualizar empréstimo
+  emp.data_real_devolucao = dataReal;
+  emp.multa = multaTotal;
+  emp.multa_paga = multaPaga;
+
+  // Livro volta para disponível
+  const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
+  if (livro) livro.status = 'disponível';
+
+  try {
+    await apiUpdate('id_emprestimo', idEmp, { data_real_devolucao: dataReal, multa: multaTotal, multa_paga: multaPaga });
+    if (livro) await apiUpdate('numero_livro', livro.numero_livro, { status: 'disponível' });
+  } catch(e) { toast('Salvo localmente (offline)', 'error'); }
+
+  closeModalFn();
+  toast(`✅ Livro devolvido! "${livro ? livro.titulo : emp.numero_livro}" está disponível novamente.`);
+
+  // Recarregar alerta e histórico
+  carregarDadosAluno();
+  renderAll();
 }
 function buscarLivro(num) {
   if (!num) { document.getElementById('ret_titulo_livro').value = ''; document.getElementById('ret_autor_livro').value = ''; document.getElementById('ret_status_livro').value = ''; return; }
