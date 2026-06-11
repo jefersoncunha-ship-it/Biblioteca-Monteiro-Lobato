@@ -600,7 +600,7 @@
 
 <!-- MODAL -->
 <div id="modalOverlay" class="modal-overlay" style="display:none;" onclick="closeModal(event)">
-  <div class="modal" id="modalContent" onclick="e=>e.stopPropagation()">
+  <div class="modal" id="modalContent" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="modalTitle">Modal</h3>
       <button class="modal-close" onclick="closeModalFn()">✕</button>
@@ -625,6 +625,7 @@ function verificarSessao() {
   const logado = sessionStorage.getItem('bml_logado');
   if (logado === 'true') {
     document.getElementById('loginScreen').classList.add('hidden');
+    loadAll();
   }
 }
 
@@ -678,8 +679,10 @@ function genEmpId() {
 }
 function fmtDate(d) {
   if (!d) return '-';
-  const [y,m,di] = d.split('-');
-  return `${di}/${m}/${y}`;
+  const clean = d.toString().split('T')[0]; // remove hora se existir
+  const parts = clean.split('-');
+  if (parts.length !== 3) return d;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 function diasAtraso(dataPrev) {
   if (!dataPrev) return 0;
@@ -1410,14 +1413,25 @@ async function renomearTurma() {
   const turmaAtual = document.getElementById('selTurma').value;
   const novoNome = document.getElementById('novoNomeTurma').value.trim();
   if (!turmaAtual || !novoNome) { toast('Selecione a turma e informe o novo nome', 'error'); return; }
+  if (turmaAtual === novoNome) { toast('O novo nome é igual ao atual', 'error'); return; }
+
+  // Atualizar estado local primeiro
   state.alunos.filter(a => a.turma === turmaAtual).forEach(a => { a.turma = novoNome; });
+
+  // Salvar na API
   try {
-    for (const a of state.alunos.filter(a2 => a2.turma === novoNome)) {
+    const alunosDaTurma = state.alunos.filter(a => a.turma === novoNome);
+    for (const a of alunosDaTurma) {
       await apiUpdate('numero_aluno', a.numero_aluno, { turma: novoNome });
     }
-  } catch(e) {}
-  toast(`Turma renomeada para ${novoNome}`);
-  populateAlunosSelects(); carregarTurma();
+  } catch(e) { toast('Salvo localmente (offline)', 'error'); }
+
+  toast(`Turma "${turmaAtual}" renomeada para "${novoNome}"`);
+  document.getElementById('novoNomeTurma').value = '';
+  populateAlunosSelects();
+  // Selecionar a turma renomeada automaticamente
+  document.getElementById('selTurma').value = novoNome;
+  carregarTurma();
 }
 function editarAlunoModal(num) {
   const a = state.alunos.find(x => x.numero_aluno === num);
@@ -1438,10 +1452,17 @@ async function salvarEdicaoAluno(num) {
   closeModalFn(); carregarTurma(); toast('Aluno atualizado!');
 }
 async function excluirAluno(num) {
-  if (!confirm('Excluir este aluno? O histórico será preservado.')) return;
+  if (!confirm('Excluir este aluno? O histórico de empréstimos será preservado.')) return;
   state.alunos = state.alunos.filter(a => a.numero_aluno !== num);
   try { await apiDelete('numero_aluno', num); } catch(e) {}
-  carregarTurma(); renderMetrics(); toast('Aluno excluído');
+  const turmaSel = document.getElementById('selTurma').value;
+  populateAlunosSelects();
+  if (turmaSel) {
+    document.getElementById('selTurma').value = turmaSel;
+    carregarTurma();
+  }
+  renderMetrics();
+  toast('Aluno excluído com sucesso');
 }
 function verHistoricoAlunoModal(num) {
   const aluno = state.alunos.find(a => a.numero_aluno === num);
