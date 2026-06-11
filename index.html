@@ -533,15 +533,17 @@
         <div class="card-title"><span class="dot"></span>Catálogo de Livros</div>
         <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
           <div class="search-wrap" style="flex:1; min-width:180px;">
-            <input type="text" id="buscaLivro" oninput="filtrarLivros()" placeholder="🔍 Buscar por número, título ou autor...">
+            <input type="text" id="buscaLivro" onkeydown="if(event.key==='Enter') filtrarLivros()" placeholder="Buscar por número, título ou autor...">
           </div>
-          <select id="filtroStatus" onchange="filtrarLivros()" style="border:1px solid var(--border-strong); border-radius:7px; padding:8px 10px; font-size:13px;">
+          <select id="filtroStatus" style="border:1px solid var(--border-strong); border-radius:7px; padding:8px 10px; font-size:13px;">
             <option value="">Todos os status</option>
             <option value="disponível">Disponível</option>
             <option value="emprestado">Emprestado</option>
             <option value="perdido">Perdido</option>
             <option value="danificado">Danificado</option>
           </select>
+          <button class="btn-primary" onclick="filtrarLivros()" style="padding:8px 16px;">🔍 Buscar</button>
+          <button class="btn-secondary" onclick="limparBuscaLivros()">Limpar</button>
           <span id="resultCount" style="font-size:12px; color:var(--text-muted); white-space:nowrap;"></span>
         </div>
         <div id="catalogoWrap">
@@ -1277,6 +1279,13 @@ async function cadastrarLivro() {
   toast('Livro cadastrado com sucesso!');
   ['liv_numero','liv_titulo','liv_autor','liv_categoria','liv_local'].forEach(id => document.getElementById(id).value = '');
   filtrarLivros(); renderMetrics();
+}
+
+function limparBuscaLivros() {
+  document.getElementById('buscaLivro').value = '';
+  document.getElementById('filtroStatus').value = '';
+  document.getElementById('resultCount').textContent = '';
+  document.getElementById('catalogoWrap').innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><p>Use a busca acima para encontrar livros</p></div>';
 }
 
 function filtrarLivros() {
