@@ -296,7 +296,7 @@
   <div class="login-box">
     <div class="login-icon">📚</div>
     <h2>Biblioteca Monteiro Lobato</h2>
-    <p>Sistema de Gestão Escolar</p>
+    <p>EMEF 25 De Julho</p>
     <div class="form-group">
       <label>Usuário</label>
       <input type="text" id="loginUser" placeholder="Digite o usuário" onkeydown="if(event.key==='Enter') fazerLogin()">
@@ -314,7 +314,7 @@
 <nav id="sidebar">
   <div class="sidebar-logo">
     <h1>📚 Biblioteca<br>Monteiro Lobato</h1>
-    <p>Sistema de Gestão</p>
+    <p>EMEF 25 De Julho</p>
   </div>
   <div class="sidebar-search">
     <div class="search-global-wrap">
@@ -401,8 +401,8 @@
 
       <!-- TABS -->
       <div class="tabs">
-        <div class="tab active" onclick="switchTab('retirada')">📖 Registrar Retirada</div>
-        <div class="tab" onclick="switchTab('devolucao')">↩️ Registrar Devolução</div>
+        <div class="tab active" onclick="switchTab('retirada', this)">📖 Registrar Retirada</div>
+        <div class="tab" onclick="switchTab('devolucao', this)">↩️ Registrar Devolução</div>
       </div>
 
       <!-- TAB RETIRADA -->
@@ -782,7 +782,6 @@ function renderAll() {
   renderTopLivros();
   renderRankingTurmas();
   renderCalendar();
-  renderTabelaLivros();
   renderChartMultas();
 }
 
@@ -829,15 +828,23 @@ function renderFinanceiro() {
   state.emprestimos.forEach(e => {
     const dias = calcMulta(e);
     const multa = dias * 1;
-    totalGerado += multa;
     const pago = parseFloat(e.multa_paga || 0);
+    totalGerado += multa;
     totalPago += pago;
-    if (multa > pago) { pendente += (multa - pago); alunosComAtraso.add(e.numero_aluno); }
 
-    const dt = new Date(e.data_devolucao || e.data_retirada);
-    if (!isNaN(dt)) {
-      if (dt.getMonth() === mesAtual && dt.getFullYear() === anoAtual) valorMes += pago;
-      if (dt.getFullYear() === anoAtual) valorAno += pago;
+    // Só conta como "em atraso" se ainda não devolveu e está atrasado
+    if (!e.data_real_devolucao && diasAtraso(e.data_devolucao) > 0) {
+      alunosComAtraso.add(e.numero_aluno);
+    }
+    if (multa > pago) pendente += (multa - pago);
+
+    // Arrecadado: usa data real de devolução (quando foi pago)
+    if (pago > 0 && e.data_real_devolucao) {
+      const dt = new Date(e.data_real_devolucao);
+      if (!isNaN(dt)) {
+        if (dt.getMonth() === mesAtual && dt.getFullYear() === anoAtual) valorMes += pago;
+        if (dt.getFullYear() === anoAtual) valorAno += pago;
+      }
     }
   });
 
@@ -935,14 +942,14 @@ function calNav(dir) {
   renderCalendar();
 }
 function renderCalendar() {
-  const d = state.calDate; const y = d.getFullYear(); const m = d.getMonth();
+  const calD = state.calDate; const y = calD.getFullYear(); const m = calD.getMonth();
   const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   document.getElementById('calMonthYear').textContent = `${meses[m]} ${y}`;
   const first = new Date(y, m, 1).getDay();
   const days = new Date(y, m+1, 0).getDate();
   const key = `${y}-${String(m+1).padStart(2,'0')}`;
   const notes = state.planner[key] || {};
-  let html = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => `<div class="cal-day-header">${d}</div>`).join('');
+  let html = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(wd => `<div class="cal-day-header">${wd}</div>`).join('');
   for (let i = 0; i < first; i++) html += `<div class="cal-day other-month"></div>`;
   for (let day = 1; day <= days; day++) {
     const dk = String(day).padStart(2,'0'); const isToday = `${y}-${String(m+1).padStart(2,'0')}-${dk}` === TODAY;
@@ -980,11 +987,11 @@ function deleteCalNote(key, day) {
 // ============================================================
 // RETIRADA
 // ============================================================
-function switchTab(tab) {
+function switchTab(tab, el) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  event.target.classList.add('active');
+  el.classList.add('active');
 }
 
 function populateRetiradaSelects() {
@@ -1333,14 +1340,14 @@ async function salvarEdicaoLivro(num) {
   l.categoria = document.getElementById('edit_categoria').value;
   l.local = document.getElementById('edit_local').value;
   try { await apiUpdate('numero_livro', num, { titulo: l.titulo, autor: l.autor, categoria: l.categoria, local: l.local }); } catch(e) {}
-  closeModalFn(); renderTabelaLivros(); toast('Livro atualizado!');
+  closeModalFn(); filtrarLivros(); toast('Livro atualizado!');
 }
 async function mudarStatusLivro(num, novoStatus) {
   const l = state.livros.find(x => x.numero_livro === num);
   if (!l) return;
   l.status = novoStatus;
   try { await apiUpdate('numero_livro', num, { status: novoStatus }); } catch(e) {}
-  renderTabelaLivros(); renderMetrics(); toast(`Status alterado para ${novoStatus}`);
+  filtrarLivros(); renderMetrics(); toast(`Status alterado para ${novoStatus}`);
 }
 function historicoLivroModal(num) {
   const livro = state.livros.find(l => l.numero_livro === num);
