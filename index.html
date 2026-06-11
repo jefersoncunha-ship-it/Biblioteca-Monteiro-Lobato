@@ -253,6 +253,33 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 
+  /* LOGIN */
+  #loginScreen {
+    position: fixed; inset: 0; background: var(--verde-escuro);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999; padding: 20px;
+  }
+  #loginScreen.hidden { display: none; }
+  .login-box {
+    background: var(--surface); border-radius: 16px; padding: 40px 36px;
+    width: 100%; max-width: 380px; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .login-box .login-icon { font-size: 48px; margin-bottom: 12px; }
+  .login-box h2 { font-family: 'Merriweather', serif; font-size: 18px; color: var(--verde-escuro); margin-bottom: 4px; }
+  .login-box p { font-size: 12px; color: var(--text-muted); margin-bottom: 28px; }
+  .login-box .form-group { text-align: left; margin-bottom: 14px; }
+  .login-box input { width: 100%; }
+  .login-btn {
+    width: 100%; background: var(--verde-escuro); color: #fff; border: none;
+    border-radius: 8px; padding: 12px; font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 6px; transition: background 0.15s;
+  }
+  .login-btn:hover { background: var(--verde-medio); }
+  .login-error { color: #C0392B; font-size: 12px; margin-top: 10px; display: none; }
+  .logout-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); font-size: 11px; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+  .logout-btn:hover { color: #fff; border-color: rgba(255,255,255,0.6); }
+
   /* RESPONSIVE */
   @media (max-width: 768px) {
     #sidebar { width: 60px; }
@@ -263,6 +290,25 @@
 </style>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-icon">📚</div>
+    <h2>Biblioteca Monteiro Lobato</h2>
+    <p>Sistema de Gestão Escolar</p>
+    <div class="form-group">
+      <label>Usuário</label>
+      <input type="text" id="loginUser" placeholder="Digite o usuário" onkeydown="if(event.key==='Enter') fazerLogin()">
+    </div>
+    <div class="form-group">
+      <label>Senha</label>
+      <input type="password" id="loginPass" placeholder="Digite a senha" onkeydown="if(event.key==='Enter') fazerLogin()">
+    </div>
+    <button class="login-btn" onclick="fazerLogin()">Entrar</button>
+    <div class="login-error" id="loginError">⚠️ Usuário ou senha incorretos</div>
+  </div>
+</div>
 
 <!-- SIDEBAR -->
 <nav id="sidebar">
@@ -292,6 +338,7 @@
   </div>
   <div class="sidebar-footer">
     <span id="apiStatus">⚡ Conectado</span>
+    <button class="logout-btn" onclick="fazerLogout()" style="margin-left:8px;">Sair</button>
   </div>
 </nav>
 
@@ -484,7 +531,7 @@
       <!-- Catálogo -->
       <div class="card">
         <div class="card-title"><span class="dot"></span>Catálogo de Livros</div>
-        <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+        <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
           <div class="search-wrap" style="flex:1; min-width:180px;">
             <input type="text" id="buscaLivro" oninput="filtrarLivros()" placeholder="🔍 Buscar por número, título ou autor...">
           </div>
@@ -495,12 +542,10 @@
             <option value="perdido">Perdido</option>
             <option value="danificado">Danificado</option>
           </select>
+          <span id="resultCount" style="font-size:12px; color:var(--text-muted); white-space:nowrap;"></span>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Nº</th><th>Título</th><th>Autor</th><th>Categoria</th><th>Local</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody id="tabelaLivros"></tbody>
-          </table>
+        <div id="catalogoWrap">
+          <div class="empty"><div class="empty-icon">🔍</div><p>Use a busca acima para encontrar livros</p></div>
         </div>
       </div>
     </div>
@@ -568,6 +613,46 @@
 <div id="toast"></div>
 
 <script>
+// ============================================================
+// AUTENTICAÇÃO
+// ============================================================
+const USUARIOS = [
+  { user: 'biblioteca', senha: 'monteiro2025' },
+  { user: 'admin', senha: 'admin123' },
+];
+
+function verificarSessao() {
+  const logado = sessionStorage.getItem('bml_logado');
+  if (logado === 'true') {
+    document.getElementById('loginScreen').classList.add('hidden');
+  }
+}
+
+function fazerLogin() {
+  const user = document.getElementById('loginUser').value.trim().toLowerCase();
+  const senha = document.getElementById('loginPass').value;
+  const erro = document.getElementById('loginError');
+  const valido = USUARIOS.find(u => u.user === user && u.senha === senha);
+  if (valido) {
+    sessionStorage.setItem('bml_logado', 'true');
+    document.getElementById('loginScreen').classList.add('hidden');
+    erro.style.display = 'none';
+    loadAll();
+  } else {
+    erro.style.display = 'block';
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginPass').focus();
+  }
+}
+
+function fazerLogout() {
+  if (!confirm('Deseja sair do sistema?')) return;
+  sessionStorage.removeItem('bml_logado');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+}
+
 // ============================================================
 // CONFIG & STATE
 // ============================================================
@@ -1181,36 +1266,51 @@ async function cadastrarLivro() {
   try { await apiCreate(novo); } catch(e) { toast('Salvo localmente', 'error'); }
   toast('Livro cadastrado com sucesso!');
   ['liv_numero','liv_titulo','liv_autor','liv_categoria','liv_local'].forEach(id => document.getElementById(id).value = '');
-  renderTabelaLivros(); renderMetrics();
+  filtrarLivros(); renderMetrics();
 }
 
 function filtrarLivros() {
-  const q = document.getElementById('buscaLivro').value.toLowerCase();
+  const q = document.getElementById('buscaLivro').value.toLowerCase().trim();
   const st = document.getElementById('filtroStatus').value;
+
+  // Não mostra nada se campos vazios
+  if (!q && !st) {
+    document.getElementById('catalogoWrap').innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><p>Use a busca acima para encontrar livros</p></div>';
+    document.getElementById('resultCount').textContent = '';
+    return;
+  }
+
   const livros = state.livros.filter(l =>
     (!q || l.numero_livro.includes(q) || (l.titulo||'').toLowerCase().includes(q) || (l.autor||'').toLowerCase().includes(q)) &&
     (!st || l.status === st)
   );
+
+  document.getElementById('resultCount').textContent = `${livros.length} resultado${livros.length !== 1 ? 's' : ''}`;
   renderTabelaLivros(livros);
 }
 
 function renderTabelaLivros(livros) {
-  const list = livros || state.livros;
-  document.getElementById('tabelaLivros').innerHTML = list.length === 0
-    ? '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px;">Nenhum livro encontrado</td></tr>'
-    : list.map(l => `<tr>
-        <td><strong>${l.numero_livro}</strong></td>
-        <td>${l.titulo}</td><td>${l.autor||'-'}</td><td>${l.categoria||'-'}</td><td>${l.local||'Biblioteca'}</td>
-        <td>${badgeStatus(l.status)}</td>
-        <td>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;">
-            <button class="btn-sm" onclick="editarLivroModal('${l.numero_livro}')">Editar</button>
-            <button class="btn-warning" onclick="mudarStatusLivro('${l.numero_livro}','perdido')">Perdido</button>
-            <button class="btn-danger" onclick="mudarStatusLivro('${l.numero_livro}','danificado')">Danificado</button>
-            <button class="btn-sm" style="background:var(--laranja);" onclick="historicoLivroModal('${l.numero_livro}')">Histórico</button>
-          </div>
-        </td>
-      </tr>`).join('');
+  const wrap = document.getElementById('catalogoWrap');
+  if (!livros || livros.length === 0) {
+    wrap.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><p>Nenhum livro encontrado</p></div>';
+    return;
+  }
+  wrap.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Nº</th><th>Título</th><th>Autor</th><th>Categoria</th><th>Local</th><th>Status</th><th>Ações</th></tr></thead>
+    <tbody>${livros.map(l => `<tr>
+      <td><strong>${l.numero_livro}</strong></td>
+      <td>${l.titulo}</td><td>${l.autor||'-'}</td><td>${l.categoria||'-'}</td><td>${l.local||'Biblioteca'}</td>
+      <td>${badgeStatus(l.status)}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          <button class="btn-sm" onclick="editarLivroModal('${l.numero_livro}')">Editar</button>
+          <button class="btn-warning" onclick="mudarStatusLivro('${l.numero_livro}','perdido')">Perdido</button>
+          <button class="btn-danger" onclick="mudarStatusLivro('${l.numero_livro}','danificado')">Danificado</button>
+          <button class="btn-sm" style="background:var(--laranja);" onclick="historicoLivroModal('${l.numero_livro}')">Histórico</button>
+        </div>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
 }
 
 function editarLivroModal(num) {
@@ -1433,7 +1533,7 @@ document.getElementById('ret_data_retirada').addEventListener('change', function
   document.getElementById('ret_data_devolucao').value = addDays(this.value, 14);
 });
 
-loadAll();
+verificarSessao();
 </script>
 </body>
 </html>
