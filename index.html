@@ -1401,21 +1401,61 @@ function carregarTurma() {
   const turma = document.getElementById('selTurma').value;
   if (!turma) { document.getElementById('listaTurmaAlunos').innerHTML = '<div class="empty"><div class="empty-icon">👥</div><p>Selecione uma turma</p></div>'; return; }
   const alunos = state.alunos.filter(a => a.turma === turma).sort((a,b) => a.nome.localeCompare(b.nome));
+
+  // Contadores de situação
+  let semLivro = 0, emAndamento = 0, atrasado = 0;
+
+  const rows = alunos.map(a => {
+    const empAberto = state.emprestimos.find(e => e.numero_aluno === a.numero_aluno && !e.data_real_devolucao);
+    let situacaoBadge = '';
+    if (!empAberto) {
+      semLivro++;
+      situacaoBadge = '<span class="badge badge-gray">📭 Sem livro</span>';
+    } else if (diasAtraso(empAberto.data_devolucao) > 0) {
+      atrasado++;
+      const dias = diasAtraso(empAberto.data_devolucao);
+      situacaoBadge = `<span class="badge badge-red">⚠️ Atraso (${dias}d)</span>`;
+    } else {
+      emAndamento++;
+      const livro = state.livros.find(l => l.numero_livro === empAberto.numero_livro);
+      situacaoBadge = `<span class="badge badge-blue" title="${livro ? livro.titulo : empAberto.numero_livro}">📖 Em andamento</span>`;
+    }
+    return `<tr>
+      <td><code style="font-size:11px;">${a.numero_aluno}</code></td>
+      <td>${a.nome}</td>
+      <td>${situacaoBadge}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          <button class="btn-sm" onclick="editarAlunoModal('${a.numero_aluno}')">Editar</button>
+          <button class="btn-sm" style="background:var(--laranja);" onclick="verHistoricoAlunoModal('${a.numero_aluno}')">Histórico</button>
+          <button class="btn-danger" onclick="excluirAluno('${a.numero_aluno}')">Excluir</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
   document.getElementById('listaTurmaAlunos').innerHTML = `
-    <div style="margin-bottom:10px; font-size:13px; color:var(--text-secondary);">Total: <strong>${alunos.length} alunos</strong></div>
+    <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+      <div class="metric-card green" style="flex:1; min-width:100px; padding:12px;">
+        <div class="m-label">Total</div>
+        <div class="m-value" style="font-size:20px;">${alunos.length}</div>
+      </div>
+      <div class="metric-card" style="flex:1; min-width:100px; padding:12px; border-left:3px solid #1565C0;">
+        <div class="m-label">Em Andamento</div>
+        <div class="m-value" style="font-size:20px;">${emAndamento}</div>
+      </div>
+      <div class="metric-card red" style="flex:1; min-width:100px; padding:12px;">
+        <div class="m-label">Em Atraso</div>
+        <div class="m-value" style="font-size:20px;">${atrasado}</div>
+      </div>
+      <div class="metric-card" style="flex:1; min-width:100px; padding:12px; border-left:3px solid var(--text-muted);">
+        <div class="m-label">Sem Livro</div>
+        <div class="m-value" style="font-size:20px;">${semLivro}</div>
+      </div>
+    </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Nº</th><th>Nome</th><th>Turma</th><th>Ações</th></tr></thead>
-      <tbody>${alunos.map(a => `<tr>
-        <td><code style="font-size:11px;">${a.numero_aluno}</code></td>
-        <td>${a.nome}</td><td>${a.turma}</td>
-        <td>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;">
-            <button class="btn-sm" onclick="editarAlunoModal('${a.numero_aluno}')">Editar</button>
-            <button class="btn-sm" style="background:var(--laranja);" onclick="verHistoricoAlunoModal('${a.numero_aluno}')">Histórico</button>
-            <button class="btn-danger" onclick="excluirAluno('${a.numero_aluno}')">Excluir</button>
-          </div>
-        </td>
-      </tr>`).join('')}</tbody>
+      <thead><tr><th>Nº</th><th>Nome</th><th>Situação</th><th>Ações</th></tr></thead>
+      <tbody>${rows}</tbody>
     </table></div>`;
 }
 async function renomearTurma() {
