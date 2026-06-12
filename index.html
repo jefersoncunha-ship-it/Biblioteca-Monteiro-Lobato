@@ -180,6 +180,28 @@
   .cal-day-num { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
   .cal-day.today .cal-day-num { color: var(--laranja); }
   .cal-note { font-size: 10px; color: var(--verde-escuro); margin-top: 4px; background: rgba(47,82,51,0.1); border-radius: 4px; padding: 2px 4px; line-height: 1.3; }
+  .cal-note-rec { background: rgba(227,139,44,0.15); color: var(--marrom); }
+
+  /* TOOLTIP DO DIA */
+  .cal-tooltip {
+    display: none; position: absolute; z-index: 300;
+    background: var(--verde-escuro); color: #fff;
+    border-radius: 8px; padding: 10px 12px;
+    min-width: 180px; max-width: 240px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .cal-tooltip::before {
+    content: ''; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-bottom: 5px solid var(--verde-escuro);
+  }
+  .cal-day:hover .cal-tooltip { display: block; }
+  .cal-tooltip-item { font-size: 11px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.15); display: flex; align-items: flex-start; gap: 6px; }
+  .cal-tooltip-item:last-child { border-bottom: none; }
+  .cal-tooltip-hora { font-size: 10px; font-weight: 700; color: var(--laranja); white-space: nowrap; margin-top: 1px; }
+  .cal-tooltip-texto { line-height: 1.35; }
 
   /* MODAL */
   .modal-overlay {
@@ -664,7 +686,7 @@ function fazerLogout() {
 // ============================================================
 const API_BASE = 'https://sheetdb.io/api/v1/155duqegcxrm3';
 const TODAY = new Date().toISOString().split('T')[0];
-let state = { alunos: [], livros: [], emprestimos: [], planner: {}, calDate: new Date(), loaded: false };
+let state = { alunos: [], livros: [], emprestimos: [], planner: {}, recorrencias: [], calDate: new Date(), loaded: false };
 let chartMultas = null;
 
 // ============================================================
@@ -741,14 +763,57 @@ async function loadAll() {
     state.alunos = rows.filter(r => r.tipo === 'aluno');
     state.livros = rows.filter(r => r.tipo === 'livro');
     state.emprestimos = rows.filter(r => r.tipo === 'emprestimo' || r.id_emprestimo);
-    // load planner from localStorage as fallback
-    const saved = localStorage.getItem('bml_planner');
-    if (saved) state.planner = JSON.parse(saved);
+
+    // Carregar planner da planilha
+    const plannerRows = rows.filter(r => r.tipo === 'planner');
+    state.planner = {};
+    state.recorrencias = [];
+    plannerRows.forEach(r => {
+      if (r.chave === 'recorrencia') {
+        // É uma recorrência
+        state.recorrencias.push({
+          id_nota: r.id_nota,
+          dia_semana: parseInt(r.dia),
+          nota: r.nota,
+          data_inicio: r.data_inicio || '',
+          data_fim: r.data_fim || '',
+          intervalo: parseInt(r.intervalo) || 1
+        });
+      } else if (r.chave && r.dia && r.nota) {
+        // É uma nota direta
+        if (!state.planner[r.chave]) state.planner[r.chave] = {};
+        state.planner[r.chave][r.dia] = r.nota;
+      }
+    });
+
+    // Migrar localStorage para planilha se existir (migração única)
+    const localSaved = localStorage.getItem('bml_planner');
+    if (localSaved && !plannerRows.length) {
+      const local = JSON.parse(localSaved);
+      for (const chave of Object.keys(local)) {
+        for (const dia of Object.keys(local[chave])) {
+          const nota = local[chave][dia];
+          if (nota) {
+            const obj = { tipo: 'planner', chave, dia, nota };
+            if (!state.planner[chave]) state.planner[chave] = {};
+            state.planner[chave][dia] = nota;
+            try { await apiCreate(obj); } catch(e) {}
+          }
+        }
+      }
+      localStorage.removeItem('bml_planner');
+      toast('Anotações migradas para a nuvem! ☁️');
+    }
+
     state.loaded = true;
     document.getElementById('apiStatus').textContent = '⚡ Conectado';
     renderAll();
   } catch(e) {
     document.getElementById('apiStatus').textContent = '⚠️ Offline';
+    // Fallback: tentar localStorage
+    const saved = localStorage.getItem('bml_planner');
+    if (saved) state.planner = JSON.parse(saved);
+    if (!state.recorrencias) state.recorrencias = [];
     state.loaded = true;
     renderAll();
     toast('Modo offline: dados locais', 'error');
@@ -949,6 +1014,49 @@ function calNav(dir) {
   else { state.calDate.setMonth(state.calDate.getMonth() + dir); }
   renderCalendar();
 }
+
+function getNotasParaDia(fullDate) {
+  const notas = [];
+  const key = fullDate.substring(0, 7);
+  const day = fullDate.substring(8, 10);
+  const diaSemana = new Date(fullDate + 'T12:00:00').getDay();
+
+  // Nota direta
+  if (state.planner[key] && state.planner[key][day]) {
+    notas.push({ texto: state.planner[key][day], tipo: 'direta', key, day, hora: '' });
+  }
+
+  // Notas recorrentes
+  if (state.recorrencias) {
+    state.recorrencias.forEach(r => {
+      if (r.dia_semana !== diaSemana) return;
+      if (fullDate < r.data_inicio) return;
+      if (r.data_fim && fullDate > r.data_fim) return;
+      if (r.intervalo === 1) {
+        notas.push({ texto: r.nota, tipo: 'recorrente', id: r.id_nota, hora: r.hora || '' });
+      } else if (r.intervalo === 2) {
+        const inicio = new Date(r.data_inicio + 'T12:00:00');
+        const atual = new Date(fullDate + 'T12:00:00');
+        const diffDias = Math.round((atual - inicio) / 86400000);
+        const diffSemanas = Math.floor(diffDias / 7);
+        if (diffSemanas % 2 === 0) {
+          notas.push({ texto: r.nota, tipo: 'recorrente', id: r.id_nota, hora: r.hora || '' });
+        }
+      }
+    });
+  }
+
+  // Ordenar por horário (sem hora vai pro final)
+  notas.sort((a, b) => {
+    if (!a.hora && !b.hora) return 0;
+    if (!a.hora) return 1;
+    if (!b.hora) return -1;
+    return a.hora.localeCompare(b.hora);
+  });
+
+  return notas;
+}
+
 function renderCalendar() {
   const calD = state.calDate; const y = calD.getFullYear(); const m = calD.getMonth();
   const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -956,39 +1064,155 @@ function renderCalendar() {
   const first = new Date(y, m, 1).getDay();
   const days = new Date(y, m+1, 0).getDate();
   const key = `${y}-${String(m+1).padStart(2,'0')}`;
-  const notes = state.planner[key] || {};
+
   let html = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(wd => `<div class="cal-day-header">${wd}</div>`).join('');
   for (let i = 0; i < first; i++) html += `<div class="cal-day other-month"></div>`;
   for (let day = 1; day <= days; day++) {
-    const dk = String(day).padStart(2,'0'); const isToday = `${y}-${String(m+1).padStart(2,'0')}-${dk}` === TODAY;
-    const note = notes[dk] || '';
-    html += `<div class="cal-day ${isToday ? 'today' : ''} ${note ? 'has-note' : ''}" onclick="editCalDay('${key}','${dk}','${note.replace(/'/g,"\\'")}')">
+    const dk = String(day).padStart(2,'0');
+    const fullDate = `${y}-${String(m+1).padStart(2,'0')}-${dk}`;
+    const isToday = fullDate === TODAY;
+    const notas = getNotasParaDia(fullDate);
+    const temNota = notas.length > 0;
+
+    // Mini notas no dia
+    const notasHtml = notas.slice(0,2).map(n =>
+      `<div class="cal-note ${n.tipo === 'recorrente' ? 'cal-note-rec' : ''}">${n.hora ? n.hora+' ' : ''}${n.texto.substring(0,22)}</div>`
+    ).join('') + (notas.length > 2 ? `<div class="cal-note" style="opacity:0.6;">+${notas.length-2} mais</div>` : '');
+
+    // Tooltip de hover
+    const tooltipHtml = temNota ? `
+      <div class="cal-tooltip">
+        ${notas.map(n => `
+          <div class="cal-tooltip-item">
+            ${n.hora ? `<span class="cal-tooltip-hora">${n.hora}</span>` : ''}
+            <span class="cal-tooltip-texto">${n.tipo === 'recorrente' ? '🔁 ' : '📝 '}${n.texto}</span>
+          </div>`).join('')}
+      </div>` : '';
+
+    html += `<div class="cal-day ${isToday ? 'today' : ''} ${temNota ? 'has-note' : ''}" onclick="editCalDay('${key}','${dk}','${fullDate}')">
       <div class="cal-day-num">${day}</div>
-      ${note ? `<div class="cal-note">${note.substring(0,40)}</div>` : ''}
+      ${notasHtml}
+      ${tooltipHtml}
     </div>`;
   }
   document.getElementById('calGrid').innerHTML = html;
 }
-function editCalDay(key, day, cur) {
-  openModal('Anotação do Dia ' + parseInt(day), `
-    <div class="form-group"><label>Anotação</label>
-    <textarea id="calNoteInput" rows="4" style="border:1px solid var(--border-strong);border-radius:7px;padding:8px;width:100%;font-size:13px;">${cur}</textarea></div>
-    <div style="display:flex;gap:8px;margin-top:12px;">
-      <button class="btn-primary" onclick="saveCalNote('${key}','${day}')">Salvar</button>
-      <button class="btn-secondary" onclick="deleteCalNote('${key}','${day}')">Excluir</button>
+
+function editCalDay(key, day, fullDate) {
+  const diaSemana = new Date(fullDate + 'T12:00:00').getDay();
+  const nomesDia = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  const nomeDia = nomesDia[diaSemana];
+  const notasDiretas = (state.planner[key] && state.planner[key][day]) ? state.planner[key][day] : '';
+  const recsDoDia = (state.recorrencias || []).filter(r => r.dia_semana === diaSemana && r.data_inicio <= fullDate && (!r.data_fim || r.data_fim >= fullDate));
+
+  let recsHtml = recsDoDia.length > 0 ? `
+    <div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+      <div style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:8px;">🔁 Recorrências ativas neste dia:</div>
+      ${recsDoDia.map(r => `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:var(--bege); border-radius:7px; padding:8px 10px; margin-bottom:6px;">
+          <div>
+            ${r.hora ? `<span style="font-size:11px; font-weight:700; color:var(--marrom);">⏰ ${r.hora} &nbsp;·&nbsp; </span>` : ''}
+            <span style="font-size:12px; font-weight:600;">${r.nota}</span>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${r.intervalo === 1 ? 'Toda '+nomeDia : 'A cada 2 semanas'} ${r.data_fim ? '· até '+fmtDate(r.data_fim) : '· sem fim'}</div>
+          </div>
+          <button class="btn-danger" style="white-space:nowrap;" onclick="excluirRecorrencia('${r.id_nota}')">Excluir</button>
+        </div>`).join('')}
+    </div>` : '';
+
+  openModal(`📅 ${parseInt(day)}  —  ${nomeDia}`, `
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>Anotação para este dia</label>
+      <textarea id="calNoteInput" rows="3" style="border:1px solid var(--border-strong);border-radius:7px;padding:8px;width:100%;font-size:13px;resize:vertical;">${notasDiretas}</textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="btn-primary" onclick="saveCalNote('${key}','${day}')">💾 Salvar nota</button>
+      ${notasDiretas ? `<button class="btn-secondary" onclick="deleteCalNote('${key}','${day}')">🗑 Excluir nota</button>` : ''}
       <button class="btn-secondary" onclick="closeModalFn()">Cancelar</button>
-    </div>`);
+    </div>
+
+    <div style="border-top:1px solid var(--border); padding-top:14px;">
+      <div style="font-size:12px; font-weight:600; color:var(--verde-escuro); margin-bottom:10px;">🔁 Adicionar recorrência neste dia da semana</div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="form-group">
+          <label>Repetir</label>
+          <select id="rec_intervalo" style="border:1px solid var(--border-strong);border-radius:7px;padding:8px;font-size:13px;">
+            <option value="1">Toda ${nomeDia}</option>
+            <option value="2">A cada 2 semanas</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Horário</label>
+          <input type="time" id="rec_hora" style="border:1px solid var(--border-strong);border-radius:7px;padding:8px;font-size:13px;">
+        </div>
+        <div class="form-group">
+          <label>Até (opcional)</label>
+          <input type="date" id="rec_data_fim" style="border:1px solid var(--border-strong);border-radius:7px;padding:8px;font-size:13px;">
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:8px;">
+        <label>Texto da recorrência</label>
+        <input type="text" id="rec_nota" placeholder="Ex: Turma 31 retira livros" style="border:1px solid var(--border-strong);border-radius:7px;padding:8px;font-size:13px;width:100%;">
+      </div>
+      <button class="btn-primary" style="margin-top:10px; background:var(--verde-medio);" onclick="salvarRecorrencia('${fullDate}', ${diaSemana})">➕ Adicionar recorrência</button>
+    </div>
+
+    ${recsHtml}`);
 }
-function saveCalNote(key, day) {
+
+async function salvarRecorrencia(dataInicio, diaSemana) {
+  const nota = document.getElementById('rec_nota').value.trim();
+  const intervalo = parseInt(document.getElementById('rec_intervalo').value);
+  const dataFim = document.getElementById('rec_data_fim').value || '';
+  const hora = document.getElementById('rec_hora').value || '';
+
+  if (!nota) { toast('Digite o texto da recorrência', 'error'); return; }
+
+  const idNota = `REC_${Date.now()}`;
+  const obj = { tipo: 'planner', id_nota: idNota, chave: 'recorrencia', dia: String(diaSemana), nota, data_inicio: dataInicio, data_fim: dataFim, intervalo: String(intervalo), hora };
+
+  if (!state.recorrencias) state.recorrencias = [];
+  state.recorrencias.push({ id_nota: idNota, dia_semana: diaSemana, nota, data_inicio: dataInicio, data_fim: dataFim, intervalo, hora });
+
+  try { await apiCreate(obj); } catch(e) { toast('Salvo localmente', 'error'); }
+
+  closeModalFn(); renderCalendar(); toast('Recorrência adicionada! 🔁');
+}
+
+async function excluirRecorrencia(idNota) {
+  if (!confirm('Excluir esta recorrência?')) return;
+  state.recorrencias = (state.recorrencias || []).filter(r => r.id_nota !== idNota);
+  try { await apiDelete('id_nota', idNota); } catch(e) {}
+  closeModalFn(); renderCalendar(); toast('Recorrência excluída');
+}
+
+async function saveCalNote(key, day) {
   const v = document.getElementById('calNoteInput').value.trim();
   if (!state.planner[key]) state.planner[key] = {};
-  state.planner[key][day] = v;
-  localStorage.setItem('bml_planner', JSON.stringify(state.planner));
-  closeModalFn(); renderCalendar(); toast('Anotação salva!');
+
+  if (v) {
+    state.planner[key][day] = v;
+    const idNota = `PLN_${key}_${day}`;
+    try {
+      const res = await apiFetch(`/id_nota/${encodeURIComponent(idNota)}`, { method: 'PATCH', body: JSON.stringify({ data: { nota: v } }) });
+      if (!res || res.updated === 0 || res.updated === '0') {
+        await apiCreate({ tipo: 'planner', id_nota: idNota, chave: key, dia: day, nota: v });
+      }
+    } catch(e) {
+      try { await apiCreate({ tipo: 'planner', id_nota: idNota, chave: key, dia: day, nota: v }); } catch(e2) {}
+    }
+  } else {
+    delete state.planner[key][day];
+    const idNota = `PLN_${key}_${day}`;
+    try { await apiDelete('id_nota', idNota); } catch(e) {}
+  }
+
+  closeModalFn(); renderCalendar(); toast('Anotação salva! ☁️');
 }
-function deleteCalNote(key, day) {
+
+async function deleteCalNote(key, day) {
   if (state.planner[key]) delete state.planner[key][day];
-  localStorage.setItem('bml_planner', JSON.stringify(state.planner));
+  const idNota = `PLN_${key}_${day}`;
+  try { await apiDelete('id_nota', idNota); } catch(e) {}
   closeModalFn(); renderCalendar(); toast('Anotação excluída');
 }
 
