@@ -766,6 +766,7 @@ async function loadAll() {
 
     // Carregar planner da planilha
     const plannerRows = rows.filter(r => r.tipo === 'planner');
+    console.log('=== PLANNER ROWS DA PLANILHA ===', JSON.stringify(plannerRows));
     state.planner = {};
     state.recorrencias = [];
     plannerRows.forEach(r => {
@@ -784,8 +785,12 @@ async function loadAll() {
         // É uma nota direta
         if (!state.planner[r.chave]) state.planner[r.chave] = {};
         state.planner[r.chave][r.dia] = r.nota;
+      } else {
+        console.log('=== LINHA PLANNER IGNORADA ===', JSON.stringify(r));
       }
     });
+    console.log('=== STATE.PLANNER ===', JSON.stringify(state.planner));
+    console.log('=== STATE.RECORRENCIAS ===', JSON.stringify(state.recorrencias));
 
     // Migrar localStorage para planilha se existir (migração única)
     const localSaved = localStorage.getItem('bml_planner');
