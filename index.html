@@ -1030,23 +1030,33 @@ function getNotasParaDia(fullDate) {
   if (state.recorrencias) {
     state.recorrencias.forEach(r => {
       if (r.dia_semana !== diaSemana) return;
-      if (fullDate < r.data_inicio) return;
-      if (r.data_fim && fullDate > r.data_fim) return;
+
+      // Normalizar datas (remover hora se existir)
+      const dataInicioStr = (r.data_inicio || '').split('T')[0];
+      const dataFimStr = (r.data_fim || '').split('T')[0];
+
+      if (!dataInicioStr) return;
+      if (fullDate < dataInicioStr) return;
+      if (dataFimStr && fullDate > dataFimStr) return;
+
       if (r.intervalo === 1) {
+        // Toda semana
         notas.push({ texto: r.nota, tipo: 'recorrente', id: r.id_nota, hora: r.hora || '' });
       } else if (r.intervalo === 2) {
-        const inicio = new Date(r.data_inicio + 'T12:00:00');
-        const atual = new Date(fullDate + 'T12:00:00');
-        const diffDias = Math.round((atual - inicio) / 86400000);
-        const diffSemanas = Math.floor(diffDias / 7);
-        if (diffSemanas % 2 === 0) {
+        // Quinzenal: calcular diferenca exata em dias desde data_inicio
+        const inicioDate = new Date(dataInicioStr + 'T12:00:00');
+        const atualDate = new Date(fullDate + 'T12:00:00');
+        const diffMs = atualDate.getTime() - inicioDate.getTime();
+        const diffDias = Math.round(diffMs / 86400000);
+        // So aparece se diffDias for multiplo de 14 (14, 28, 42...)
+        if (diffDias >= 0 && diffDias % 14 === 0) {
           notas.push({ texto: r.nota, tipo: 'recorrente', id: r.id_nota, hora: r.hora || '' });
         }
       }
     });
   }
 
-  // Ordenar por horário (sem hora vai pro final)
+  // Ordenar por horario (sem hora vai pro final)
   notas.sort((a, b) => {
     if (!a.hora && !b.hora) return 0;
     if (!a.hora) return 1;
@@ -1180,9 +1190,27 @@ async function salvarRecorrencia(dataInicio, diaSemana) {
 
 async function excluirRecorrencia(idNota) {
   if (!confirm('Excluir esta recorrência?')) return;
+
+  // Remover do estado local imediatamente
   state.recorrencias = (state.recorrencias || []).filter(r => r.id_nota !== idNota);
-  try { await apiDelete('id_nota', idNota); } catch(e) {}
-  closeModalFn(); renderCalendar(); toast('Recorrência excluída');
+
+  // Deletar da planilha via SheetDB usando o valor do campo id_nota
+  try {
+    const res = await fetch(API_BASE + '/id_nota/' + encodeURIComponent(idNota), {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (!data.deleted || data.deleted === '0' || data.deleted === 0) {
+      console.warn('SheetDB nao confirmou a exclusao:', data);
+    }
+  } catch(e) {
+    console.warn('Erro ao excluir recorrencia da API:', e);
+  }
+
+  closeModalFn();
+  renderCalendar();
+  toast('Recorrencia excluida');
 }
 
 async function saveCalNote(key, day) {
