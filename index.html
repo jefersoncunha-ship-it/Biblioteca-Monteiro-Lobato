@@ -770,14 +770,15 @@ async function loadAll() {
     state.recorrencias = [];
     plannerRows.forEach(r => {
       if (r.chave === 'recorrencia') {
-        // É uma recorrência
+        // É uma recorrência — garantir tipos corretos vindos da planilha
         state.recorrencias.push({
-          id_nota: r.id_nota,
+          id_nota: String(r.id_nota || ''),
           dia_semana: parseInt(r.dia),
-          nota: r.nota,
-          data_inicio: r.data_inicio || '',
-          data_fim: r.data_fim || '',
-          intervalo: parseInt(r.intervalo) || 1
+          nota: String(r.nota || ''),
+          data_inicio: String(r.data_inicio || '').split('T')[0].trim(),
+          data_fim: String(r.data_fim || '').split('T')[0].trim(),
+          intervalo: parseInt(r.intervalo) || 1,
+          hora: String(r.hora || '')
         });
       } else if (r.chave && r.dia && r.nota) {
         // É uma nota direta
@@ -1029,26 +1030,29 @@ function getNotasParaDia(fullDate) {
   // Notas recorrentes
   if (state.recorrencias) {
     state.recorrencias.forEach(r => {
-      if (r.dia_semana !== diaSemana) return;
+      // Forcar tipos corretos (dados da planilha chegam como string)
+      const diaSemanaRec = parseInt(r.dia_semana);
+      const intervalo = parseInt(r.intervalo) || 1;
 
-      // Normalizar datas (remover hora se existir)
-      const dataInicioStr = (r.data_inicio || '').split('T')[0];
-      const dataFimStr = (r.data_fim || '').split('T')[0];
+      if (diaSemanaRec !== diaSemana) return;
+
+      // Normalizar datas removendo hora se existir
+      const dataInicioStr = (r.data_inicio || '').split('T')[0].trim();
+      const dataFimStr = (r.data_fim || '').split('T')[0].trim();
 
       if (!dataInicioStr) return;
       if (fullDate < dataInicioStr) return;
       if (dataFimStr && fullDate > dataFimStr) return;
 
-      if (r.intervalo === 1) {
+      if (intervalo === 1) {
         // Toda semana
         notas.push({ texto: r.nota, tipo: 'recorrente', id: r.id_nota, hora: r.hora || '' });
-      } else if (r.intervalo === 2) {
-        // Quinzenal: calcular diferenca exata em dias desde data_inicio
+      } else if (intervalo === 2) {
+        // Quinzenal: so aparece se a diferenca em dias for multiplo exato de 14
         const inicioDate = new Date(dataInicioStr + 'T12:00:00');
         const atualDate = new Date(fullDate + 'T12:00:00');
         const diffMs = atualDate.getTime() - inicioDate.getTime();
         const diffDias = Math.round(diffMs / 86400000);
-        // So aparece se diffDias for multiplo de 14 (14, 28, 42...)
         if (diffDias >= 0 && diffDias % 14 === 0) {
           notas.push({ texto: r.nota, tipo: 'recorrente', id: r.id_nota, hora: r.hora || '' });
         }
@@ -1070,42 +1074,86 @@ function getNotasParaDia(fullDate) {
 function renderCalendar() {
   const calD = state.calDate; const y = calD.getFullYear(); const m = calD.getMonth();
   const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  document.getElementById('calMonthYear').textContent = `${meses[m]} ${y}`;
+  document.getElementById('calMonthYear').textContent = meses[m] + ' ' + y;
   const first = new Date(y, m, 1).getDay();
   const days = new Date(y, m+1, 0).getDate();
-  const key = `${y}-${String(m+1).padStart(2,'0')}`;
+  const mesStr = String(m+1).padStart(2,'0');
 
-  let html = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(wd => `<div class="cal-day-header">${wd}</div>`).join('');
-  for (let i = 0; i < first; i++) html += `<div class="cal-day other-month"></div>`;
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+
+  // Cabeçalhos
+  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(wd => {
+    const h = document.createElement('div');
+    h.className = 'cal-day-header';
+    h.textContent = wd;
+    grid.appendChild(h);
+  });
+
+  // Dias vazios antes do primeiro
+  for (let i = 0; i < first; i++) {
+    const empty = document.createElement('div');
+    empty.className = 'cal-day other-month';
+    grid.appendChild(empty);
+  }
+
+  // Dias do mês
   for (let day = 1; day <= days; day++) {
     const dk = String(day).padStart(2,'0');
-    const fullDate = `${y}-${String(m+1).padStart(2,'0')}-${dk}`;
+    const fullDate = y + '-' + mesStr + '-' + dk;
     const isToday = fullDate === TODAY;
     const notas = getNotasParaDia(fullDate);
     const temNota = notas.length > 0;
 
-    // Mini notas no dia
-    const notasHtml = notas.slice(0,2).map(n =>
-      `<div class="cal-note ${n.tipo === 'recorrente' ? 'cal-note-rec' : ''}">${n.hora ? n.hora+' ' : ''}${n.texto.substring(0,22)}</div>`
-    ).join('') + (notas.length > 2 ? `<div class="cal-note" style="opacity:0.6;">+${notas.length-2} mais</div>` : '');
+    const cell = document.createElement('div');
+    cell.className = 'cal-day' + (isToday ? ' today' : '') + (temNota ? ' has-note' : '');
+    cell.onclick = () => editCalDay(y + '-' + mesStr, dk, fullDate);
 
-    // Tooltip de hover
-    const tooltipHtml = temNota ? `
-      <div class="cal-tooltip">
-        ${notas.map(n => `
-          <div class="cal-tooltip-item">
-            ${n.hora ? `<span class="cal-tooltip-hora">${n.hora}</span>` : ''}
-            <span class="cal-tooltip-texto">${n.tipo === 'recorrente' ? '🔁 ' : '📝 '}${n.texto}</span>
-          </div>`).join('')}
-      </div>` : '';
+    // Número do dia
+    const numEl = document.createElement('div');
+    numEl.className = 'cal-day-num';
+    numEl.textContent = day;
+    cell.appendChild(numEl);
 
-    html += `<div class="cal-day ${isToday ? 'today' : ''} ${temNota ? 'has-note' : ''}" onclick="editCalDay('${key}','${dk}','${fullDate}')">
-      <div class="cal-day-num">${day}</div>
-      ${notasHtml}
-      ${tooltipHtml}
-    </div>`;
+    // Mini notas (até 2)
+    notas.slice(0, 2).forEach(n => {
+      const noteEl = document.createElement('div');
+      noteEl.className = 'cal-note' + (n.tipo === 'recorrente' ? ' cal-note-rec' : '');
+      noteEl.textContent = (n.hora ? n.hora + ' ' : '') + n.texto.substring(0, 22);
+      cell.appendChild(noteEl);
+    });
+    if (notas.length > 2) {
+      const maisEl = document.createElement('div');
+      maisEl.className = 'cal-note';
+      maisEl.style.opacity = '0.6';
+      maisEl.textContent = '+' + (notas.length - 2) + ' mais';
+      cell.appendChild(maisEl);
+    }
+
+    // Tooltip — criado via DOM para evitar problemas com caracteres especiais
+    if (temNota) {
+      const tip = document.createElement('div');
+      tip.className = 'cal-tooltip';
+      notas.forEach(n => {
+        const item = document.createElement('div');
+        item.className = 'cal-tooltip-item';
+        if (n.hora) {
+          const hora = document.createElement('span');
+          hora.className = 'cal-tooltip-hora';
+          hora.textContent = n.hora;
+          item.appendChild(hora);
+        }
+        const txt = document.createElement('span');
+        txt.className = 'cal-tooltip-texto';
+        txt.textContent = (n.tipo === 'recorrente' ? '🔁 ' : '📝 ') + n.texto;
+        item.appendChild(txt);
+        tip.appendChild(item);
+      });
+      cell.appendChild(tip);
+    }
+
+    grid.appendChild(cell);
   }
-  document.getElementById('calGrid').innerHTML = html;
 }
 
 function editCalDay(key, day, fullDate) {
