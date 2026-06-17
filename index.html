@@ -766,10 +766,15 @@ async function loadAll() {
   document.getElementById('apiStatus').textContent = '⏳ Carregando...';
   try {
     const data = await apiCall({ action: 'getAll' });
+    console.log('=== TOTAL ROWS ===', Array.isArray(data) ? data.length : data);
+    console.log('=== PRIMEIRA LINHA ===', JSON.stringify(data[0]));
     const rows = Array.isArray(data) ? data : [];
-    state.alunos = rows.filter(r => r.tipo === 'aluno');
-    state.livros = rows.filter(r => r.tipo === 'livro');
-    state.emprestimos = rows.filter(r => r.tipo === 'emprestimo' || r.id_emprestimo);
+    state.alunos = rows.filter(r => r.tipo && r.tipo.trim() === 'aluno');
+    state.livros = rows.filter(r => r.tipo && r.tipo.trim() === 'livro');
+    state.emprestimos = rows.filter(r => r.tipo && (r.tipo.trim() === 'emprestimo' || r.id_emprestimo));
+    console.log('=== ALUNOS ===', state.alunos.length);
+    console.log('=== LIVROS ===', state.livros.length);
+    console.log('=== EMPRESTIMOS ===', state.emprestimos.length);
 
     // Carregar planner da planilha
     const plannerRows = rows.filter(r => r.tipo === 'planner');
