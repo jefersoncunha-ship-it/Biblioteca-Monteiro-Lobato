@@ -754,15 +754,11 @@ async function apiCall(params) {
       })
       .join('&');
     const url = API_BASE + '?' + qs;
-    console.log('=== API CALL ===', url.substring(0, 120));
     const res = await fetch(url);
-    console.log('=== API STATUS ===', res.status, res.ok);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    console.log('=== API RESPONSE TIPO ===', typeof json, Array.isArray(json) ? 'array['+json.length+']' : JSON.stringify(json).substring(0,100));
-    return json;
+    return await res.json();
   } catch(e) {
-    console.error('=== API CALL ERROR ===', e.message); throw e;
+    console.warn('API error:', e.message); throw e;
   }
 }
 
@@ -770,15 +766,10 @@ async function loadAll() {
   document.getElementById('apiStatus').textContent = '⏳ Carregando...';
   try {
     const data = await apiCall({ action: 'getAll' });
-    console.log('=== TOTAL ROWS ===', Array.isArray(data) ? data.length : data);
-    console.log('=== PRIMEIRA LINHA ===', JSON.stringify(data[0]));
     const rows = Array.isArray(data) ? data : [];
     state.alunos = rows.filter(r => r.tipo && r.tipo.trim() === 'aluno');
     state.livros = rows.filter(r => r.tipo && r.tipo.trim() === 'livro');
     state.emprestimos = rows.filter(r => r.tipo && (r.tipo.trim() === 'emprestimo' || r.id_emprestimo));
-    console.log('=== ALUNOS ===', state.alunos.length);
-    console.log('=== LIVROS ===', state.livros.length);
-    console.log('=== EMPRESTIMOS ===', state.emprestimos.length);
 
     // Carregar planner da planilha
     const plannerRows = rows.filter(r => r.tipo === 'planner');
@@ -826,15 +817,13 @@ async function loadAll() {
     document.getElementById('apiStatus').textContent = '⚡ Conectado';
     renderAll();
   } catch(e) {
-    console.error('=== ERRO LOADALL ===', e);
-    console.error('=== ERRO MENSAGEM ===', e.message);
-    document.getElementById('apiStatus').textContent = '⚠️ Erro: ' + e.message;
+    document.getElementById('apiStatus').textContent = '⚠️ Offline';
     const saved = localStorage.getItem('bml_planner');
     if (saved) state.planner = JSON.parse(saved);
     if (!state.recorrencias) state.recorrencias = [];
     state.loaded = true;
     renderAll();
-    toast('Erro: ' + e.message, 'error');
+    toast('Modo offline: dados locais', 'error');
   }
 }
 
