@@ -745,23 +745,16 @@ function getTurmas() {
 // ============================================================
 // API
 // ============================================================
-async function apiFetch(body) {
+async function apiCall(params) {
+  // Todas as chamadas via GET para evitar bloqueio de CORS do Apps Script
   try {
-    const res = await fetch(API_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.json();
-  } catch(e) {
-    console.warn('API error:', e); throw e;
-  }
-}
-
-async function apiFetchGet(params='') {
-  try {
-    const res = await fetch(API_BASE + '?action=getAll' + params);
+    const qs = Object.entries(params)
+      .map(([k, v]) => {
+        const val = typeof v === 'object' ? encodeURIComponent(JSON.stringify(v)) : encodeURIComponent(String(v));
+        return k + '=' + val;
+      })
+      .join('&');
+    const res = await fetch(API_BASE + '?' + qs);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.json();
   } catch(e) {
@@ -772,7 +765,7 @@ async function apiFetchGet(params='') {
 async function loadAll() {
   document.getElementById('apiStatus').textContent = '⏳ Carregando...';
   try {
-    const data = await apiFetchGet();
+    const data = await apiCall({ action: 'getAll' });
     const rows = Array.isArray(data) ? data : [];
     state.alunos = rows.filter(r => r.tipo === 'aluno');
     state.livros = rows.filter(r => r.tipo === 'livro');
@@ -836,13 +829,13 @@ async function loadAll() {
 }
 
 async function apiCreate(obj) {
-  return await apiFetch({ action: 'create', data: obj });
+  return await apiCall({ action: 'create', data: obj });
 }
 async function apiUpdate(col, val, obj) {
-  return await apiFetch({ action: 'update', campo: col, valor: val, data: obj });
+  return await apiCall({ action: 'update', campo: col, valor: String(val), data: obj });
 }
 async function apiDelete(col, val) {
-  return await apiFetch({ action: 'delete', campo: col, valor: val });
+  return await apiCall({ action: 'delete', campo: col, valor: String(val) });
 }
 
 // ============================================================
