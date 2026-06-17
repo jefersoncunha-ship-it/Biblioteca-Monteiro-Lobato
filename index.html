@@ -746,7 +746,6 @@ function getTurmas() {
 // API
 // ============================================================
 async function apiCall(params) {
-  // Todas as chamadas via GET para evitar bloqueio de CORS do Apps Script
   try {
     const qs = Object.entries(params)
       .map(([k, v]) => {
@@ -754,11 +753,16 @@ async function apiCall(params) {
         return k + '=' + val;
       })
       .join('&');
-    const res = await fetch(API_BASE + '?' + qs);
+    const url = API_BASE + '?' + qs;
+    console.log('=== API CALL ===', url.substring(0, 120));
+    const res = await fetch(url);
+    console.log('=== API STATUS ===', res.status, res.ok);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.json();
+    const json = await res.json();
+    console.log('=== API RESPONSE TIPO ===', typeof json, Array.isArray(json) ? 'array['+json.length+']' : JSON.stringify(json).substring(0,100));
+    return json;
   } catch(e) {
-    console.warn('API error:', e); throw e;
+    console.error('=== API CALL ERROR ===', e.message); throw e;
   }
 }
 
@@ -822,14 +826,15 @@ async function loadAll() {
     document.getElementById('apiStatus').textContent = '⚡ Conectado';
     renderAll();
   } catch(e) {
-    document.getElementById('apiStatus').textContent = '⚠️ Offline';
-    // Fallback: tentar localStorage
+    console.error('=== ERRO LOADALL ===', e);
+    console.error('=== ERRO MENSAGEM ===', e.message);
+    document.getElementById('apiStatus').textContent = '⚠️ Erro: ' + e.message;
     const saved = localStorage.getItem('bml_planner');
     if (saved) state.planner = JSON.parse(saved);
     if (!state.recorrencias) state.recorrencias = [];
     state.loaded = true;
     renderAll();
-    toast('Modo offline: dados locais', 'error');
+    toast('Erro: ' + e.message, 'error');
   }
 }
 
