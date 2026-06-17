@@ -793,8 +793,8 @@ async function loadAll() {
           intervalo: parseInt(r.intervalo) || 1,
           hora: horaLimpa
         });
-      } else if (r.chave && r.dia && r.nota) {
-        // É uma nota direta
+      } else if (r.chave && r.chave !== 'recorrencia' && r.dia && r.nota) {
+        // É uma nota direta (chave = yyyy-mm, dia = dd)
         if (!state.planner[r.chave]) state.planner[r.chave] = {};
         state.planner[r.chave][r.dia] = r.nota;
       }
@@ -1269,21 +1269,27 @@ async function excluirRecorrencia(idNota) {
 async function saveCalNote(key, day) {
   const v = document.getElementById('calNoteInput').value.trim();
   if (!state.planner[key]) state.planner[key] = {};
+  const idNota = 'PLN_' + key + '_' + day;
 
   if (v) {
     state.planner[key][day] = v;
-    const idNota = `PLN_${key}_${day}`;
+    // Verificar se já existe no estado
+    const jaExiste = state.planner[key] && state.planner[key][day] !== undefined;
     try {
       const res = await apiUpdate('id_nota', idNota, { nota: v });
-      if (!res || res.updated === 0 || res.updated === '0') {
-        await apiCreate({ tipo: 'planner', id_nota: idNota, chave: key, dia: day, nota: v });
+      if (!res || String(res.updated) === '0') {
+        // Não existe ainda — criar
+        await apiCreate({ tipo: 'planner', id_nota: idNota, chave: key, dia: day, nota: v,
+          data_inicio: '', data_fim: '', intervalo: '', hora: '' });
       }
     } catch(e) {
-      try { await apiCreate({ tipo: 'planner', id_nota: idNota, chave: key, dia: day, nota: v }); } catch(e2) {}
+      try {
+        await apiCreate({ tipo: 'planner', id_nota: idNota, chave: key, dia: day, nota: v,
+          data_inicio: '', data_fim: '', intervalo: '', hora: '' });
+      } catch(e2) { console.warn('Erro ao salvar nota:', e2); }
     }
   } else {
     delete state.planner[key][day];
-    const idNota = `PLN_${key}_${day}`;
     try { await apiDelete('id_nota', idNota); } catch(e) {}
   }
 
@@ -1292,7 +1298,7 @@ async function saveCalNote(key, day) {
 
 async function deleteCalNote(key, day) {
   if (state.planner[key]) delete state.planner[key][day];
-  const idNota = `PLN_${key}_${day}`;
+  const idNota = 'PLN_' + key + '_' + day;
   try { await apiDelete('id_nota', idNota); } catch(e) {}
   closeModalFn(); renderCalendar(); toast('Anotação excluída');
 }
