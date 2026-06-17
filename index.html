@@ -777,7 +777,13 @@ async function loadAll() {
     state.recorrencias = [];
     plannerRows.forEach(r => {
       if (r.chave === 'recorrencia') {
-        // É uma recorrência — garantir tipos corretos vindos da planilha
+        // Limpar hora — pode vir como objeto Date corrompido do Sheets
+        let horaLimpa = String(r.hora || '').trim();
+        // Se vier como "Sat Dec 30 1899..." ou similar, extrair só HH:MM
+        if (horaLimpa.includes(':') && horaLimpa.length > 5) {
+          const match = horaLimpa.match(/(\d{1,2}):(\d{2})/);
+          horaLimpa = match ? String(match[1]).padStart(2,'0') + ':' + match[2] : '';
+        }
         state.recorrencias.push({
           id_nota: String(r.id_nota || ''),
           dia_semana: parseInt(r.dia),
@@ -785,7 +791,7 @@ async function loadAll() {
           data_inicio: String(r.data_inicio || '').split('T')[0].trim(),
           data_fim: String(r.data_fim || '').split('T')[0].trim(),
           intervalo: parseInt(r.intervalo) || 1,
-          hora: String(r.hora || '')
+          hora: horaLimpa
         });
       } else if (r.chave && r.dia && r.nota) {
         // É uma nota direta
