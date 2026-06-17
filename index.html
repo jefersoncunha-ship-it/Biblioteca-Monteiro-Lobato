@@ -684,7 +684,7 @@ function fazerLogout() {
 // ============================================================
 // CONFIG & STATE
 // ============================================================
-const API_BASE = 'https://sheetdb.io/api/v1/155duqegcxrm3';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbzXDkOROl7UAHD5Xw2vSzfYMHut0eiNY0YrlecEsyoxRzSiJltVbV0vlCybkJzaBR_W/exec';
 const TODAY = new Date().toISOString().split('T')[0];
 let state = { alunos: [], livros: [], emprestimos: [], planner: {}, recorrencias: [], calDate: new Date(), loaded: false };
 let chartMultas = null;
@@ -745,9 +745,23 @@ function getTurmas() {
 // ============================================================
 // API
 // ============================================================
-async function apiFetch(path='', opts={}) {
+async function apiFetch(body) {
   try {
-    const res = await fetch(API_BASE + path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    const res = await fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch(e) {
+    console.warn('API error:', e); throw e;
+  }
+}
+
+async function apiFetchGet(params='') {
+  try {
+    const res = await fetch(API_BASE + '?action=getAll' + params);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.json();
   } catch(e) {
@@ -758,7 +772,7 @@ async function apiFetch(path='', opts={}) {
 async function loadAll() {
   document.getElementById('apiStatus').textContent = '⏳ Carregando...';
   try {
-    const data = await apiFetch();
+    const data = await apiFetchGet();
     const rows = Array.isArray(data) ? data : [];
     state.alunos = rows.filter(r => r.tipo === 'aluno');
     state.livros = rows.filter(r => r.tipo === 'livro');
@@ -822,13 +836,13 @@ async function loadAll() {
 }
 
 async function apiCreate(obj) {
-  return await apiFetch('', { method: 'POST', body: JSON.stringify({ data: obj }) });
+  return await apiFetch({ action: 'create', data: obj });
 }
 async function apiUpdate(col, val, obj) {
-  return await apiFetch(`/${encodeURIComponent(col)}/${encodeURIComponent(val)}`, { method: 'PATCH', body: JSON.stringify({ data: obj }) });
+  return await apiFetch({ action: 'update', campo: col, valor: val, data: obj });
 }
 async function apiDelete(col, val) {
-  return await apiFetch(`/${encodeURIComponent(col)}/${encodeURIComponent(val)}`, { method: 'DELETE' });
+  return await apiFetch({ action: 'delete', campo: col, valor: val });
 }
 
 // ============================================================
@@ -1244,14 +1258,7 @@ async function excluirRecorrencia(idNota) {
 
   // Deletar da planilha via SheetDB usando o valor do campo id_nota
   try {
-    const res = await fetch(API_BASE + '/id_nota/' + encodeURIComponent(idNota), {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const data = await res.json();
-    if (!data.deleted || data.deleted === '0' || data.deleted === 0) {
-      console.warn('SheetDB nao confirmou a exclusao:', data);
-    }
+    await apiDelete('id_nota', idNota);
   } catch(e) {
     console.warn('Erro ao excluir recorrencia da API:', e);
   }
@@ -1269,7 +1276,7 @@ async function saveCalNote(key, day) {
     state.planner[key][day] = v;
     const idNota = `PLN_${key}_${day}`;
     try {
-      const res = await apiFetch(`/id_nota/${encodeURIComponent(idNota)}`, { method: 'PATCH', body: JSON.stringify({ data: { nota: v } }) });
+      const res = await apiUpdate('id_nota', idNota, { nota: v });
       if (!res || res.updated === 0 || res.updated === '0') {
         await apiCreate({ tipo: 'planner', id_nota: idNota, chave: key, dia: day, nota: v });
       }
