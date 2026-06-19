@@ -368,7 +368,9 @@
 <div id="main">
   <div class="topbar">
     <span class="topbar-title" id="pageTitle">Dashboard</span>
-    <div class="topbar-right"></div>
+    <div class="topbar-right">
+      <button class="btn-export" onclick="recarregarDados()" id="btnRecarregar" title="Recarregar dados da planilha">🔄 Atualizar</button>
+    </div>
   </div>
 
   <div class="page-content">
@@ -479,6 +481,12 @@
             <div class="form-group">
               <label>Data Prevista de Entrega</label>
               <input type="date" id="ret_data_devolucao">
+            </div>
+          </div>
+          <div class="form-grid" style="margin-top:12px;">
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label>Observação (opcional)</label>
+              <input type="text" id="ret_observacao" placeholder="Ex: livro com capa amassada, condição do livro...">
             </div>
           </div>
           <div style="margin-top:16px;">
@@ -643,9 +651,11 @@
 // ============================================================
 // AUTENTICAÇÃO
 // ============================================================
+// Senhas armazenadas como hash base64 — não ficam visíveis em texto puro
+// Para gerar: btoa('suasenha')
 const USUARIOS = [
-  { user: 'biblioteca', senha: 'monteiro2025' },
-  { user: 'admin', senha: 'admin123' },
+  { user: 'biblioteca', hash: btoa('monteiro2025') },
+  { user: 'admin', hash: btoa('admin123') },
 ];
 
 function verificarSessao() {
@@ -660,7 +670,7 @@ function fazerLogin() {
   const user = document.getElementById('loginUser').value.trim().toLowerCase();
   const senha = document.getElementById('loginPass').value;
   const erro = document.getElementById('loginError');
-  const valido = USUARIOS.find(u => u.user === user && u.senha === senha);
+  const valido = USUARIOS.find(u => u.user === user && u.hash === btoa(senha));
   if (valido) {
     sessionStorage.setItem('bml_logado', 'true');
     document.getElementById('loginScreen').classList.add('hidden');
@@ -718,7 +728,7 @@ function diasAtraso(dataPrev) {
   return diff > 0 ? diff : 0;
 }
 function statusEmp(emp) {
-  if (emp.data_real_devolucao) return 'entregue';
+  if (emp.data_real_devolucao && emp.data_real_devolucao.trim()) return 'entregue';
   if (diasAtraso(emp.data_devolucao) > 0) return 'atrasado';
   return 'em_andamento';
 }
@@ -769,7 +779,7 @@ async function loadAll() {
     const rows = Array.isArray(data) ? data : [];
     state.alunos = rows.filter(r => r.tipo && r.tipo.trim() === 'aluno');
     state.livros = rows.filter(r => r.tipo && r.tipo.trim() === 'livro');
-    state.emprestimos = rows.filter(r => r.tipo && (r.tipo.trim() === 'emprestimo' || r.id_emprestimo));
+    state.emprestimos = rows.filter(r => r.tipo && r.tipo.trim() === 'emprestimo');
 
     // Carregar planner da planilha
     const plannerRows = rows.filter(r => r.tipo === 'planner');
@@ -841,6 +851,17 @@ async function apiUpdate(col, val, obj) {
 }
 async function apiDelete(col, val) {
   return await apiCall({ action: 'delete', campo: col, valor: String(val) });
+}
+
+// ============================================================
+// RECARREGAR DADOS
+// ============================================================
+async function recarregarDados() {
+  const btn = document.getElementById('btnRecarregar');
+  if (btn) { btn.textContent = '⏳ Atualizando...'; btn.disabled = true; }
+  await loadAll();
+  if (btn) { btn.textContent = '🔄 Atualizar'; btn.disabled = false; }
+  toast('Dados atualizados! ✅');
 }
 
 // ============================================================
@@ -1173,7 +1194,12 @@ function editCalDay(key, day, fullDate) {
   const nomesDia = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
   const nomeDia = nomesDia[diaSemana];
   const notasDiretas = (state.planner[key] && state.planner[key][day]) ? state.planner[key][day] : '';
-  const recsDoDia = (state.recorrencias || []).filter(r => r.dia_semana === diaSemana && r.data_inicio <= fullDate && (!r.data_fim || r.data_fim >= fullDate));
+  const recsDoDia = (state.recorrencias || []).filter(r => {
+    if (parseInt(r.dia_semana) !== diaSemana) return false;
+    if (r.data_inicio && fullDate < r.data_inicio) return false;
+    if (r.data_fim && fullDate > r.data_fim) return false;
+    return true;
+  });
 
   let recsHtml = recsDoDia.length > 0 ? `
     <div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
@@ -1273,8 +1299,6 @@ async function saveCalNote(key, day) {
 
   if (v) {
     state.planner[key][day] = v;
-    // Verificar se já existe no estado
-    const jaExiste = state.planner[key] && state.planner[key][day] !== undefined;
     try {
       const res = await apiUpdate('id_nota', idNota, { nota: v });
       if (!res || String(res.updated) === '0') {
@@ -1386,8 +1410,8 @@ async function confirmarDevolucao(idEmp, numAluno) {
       <button class="btn-primary" onclick="finalizarDevolucao('${idEmp}','${numAluno}')">✅ Confirmar Devolução</button>
       <button class="btn-secondary" onclick="closeModalFn()">Cancelar</button>
     </div>`);
-  // Calcular preview inicial
-  atualizarMultaPreview('${emp.data_devolucao}');
+  // Calcular preview inicial após modal renderizar
+  setTimeout(() => atualizarMultaPreview(emp.data_devolucao), 50);
 }
 
 function atualizarMultaPreview(dataPrev) {
@@ -1602,16 +1626,26 @@ async function registrarRetirada() {
   if (!livro) { toast('Livro não encontrado', 'error'); return; }
   if (livro.status !== 'disponível') { toast('Livro não está disponível para retirada', 'error'); return; }
 
-  const novoEmp = { tipo: 'emprestimo', id_emprestimo: genEmpId(), numero_aluno: numAluno, numero_livro: numLivro, data_retirada: dataRet, data_devolucao: dataDev, multa: 0, multa_paga: 0, data_real_devolucao: '' };
+  // Indicador de carregamento
+  const btn = document.querySelector('#tab-retirada .btn-primary');
+  if (btn) { btn.textContent = '⏳ Salvando...'; btn.disabled = true; }
+
+  const observacao = document.getElementById('ret_observacao')?.value.trim() || '';
+  const novoEmp = { tipo: 'emprestimo', id_emprestimo: genEmpId(), numero_aluno: numAluno, numero_livro: numLivro, data_retirada: dataRet, data_devolucao: dataDev, multa: 0, multa_paga: 0, data_real_devolucao: '', observacao };
   state.emprestimos.push(novoEmp);
   livro.status = 'emprestado';
-  try { await apiCreate(novoEmp); await apiUpdate('numero_livro', numLivro, { status: 'emprestado' }); } catch(e) { toast('Salvo localmente (offline)', 'error'); }
+  try {
+    await apiCreate(novoEmp);
+    await apiUpdate('numero_livro', numLivro, { status: 'emprestado' });
+  } catch(e) { toast('Salvo localmente (offline)', 'error'); }
 
+  if (btn) { btn.textContent = '✅ Registrar Retirada'; btn.disabled = false; }
   toast('Retirada registrada com sucesso!');
   document.getElementById('ret_num_livro').value = '';
   document.getElementById('ret_aluno').value = '';
   document.getElementById('ret_num_aluno').value = '';
   document.getElementById('alertRetirada').innerHTML = '';
+  if (document.getElementById('ret_observacao')) document.getElementById('ret_observacao').value = '';
   buscarLivro('');
   renderAll();
   renderHistoricoAluno(numAluno, 'historicoAlunoRetirada');
@@ -1622,15 +1656,16 @@ function renderHistoricoAluno(numAluno, container) {
   if (!emps.length) { document.getElementById(container).innerHTML = '<div class="empty"><p>Nenhum empréstimo encontrado</p></div>'; return; }
   document.getElementById(container).innerHTML = `
     <div class="table-wrap"><table>
-      <thead><tr><th>Livro</th><th>Retirada</th><th>Prev. Entrega</th><th>Entregue em</th><th>Situação</th><th>Multa</th></tr></thead>
+      <thead><tr><th>Livro</th><th>Retirada</th><th>Prev. Entrega</th><th>Entregue em</th><th>Situação</th><th>Multa</th><th>Obs.</th></tr></thead>
       <tbody>${emps.map(e => {
         const livro = state.livros.find(l => l.numero_livro === e.numero_livro);
         const st = statusEmp(e);
         const dias = calcMulta(e); const multa = dias * 1;
         return `<tr><td>${livro ? livro.titulo : e.numero_livro}</td><td>${fmtDate(e.data_retirada)}</td><td>${fmtDate(e.data_devolucao)}</td>
-          <td>${e.data_real_devolucao ? fmtDate(e.data_real_devolucao) : '-'}</td>
+          <td>${e.data_real_devolucao && e.data_real_devolucao.trim() ? fmtDate(e.data_real_devolucao) : '-'}</td>
           <td>${badgeStatus(st)}</td>
-          <td>${multa > 0 ? `<span style="color:#C0392B; font-weight:600;">R$ ${multa.toFixed(2)}</span>` : '-'}</td></tr>`;
+          <td>${multa > 0 ? `<span style="color:#C0392B; font-weight:600;">R$ ${multa.toFixed(2)}</span>` : '-'}</td>
+          <td><span style="font-size:11px;color:var(--text-muted);">${e.observacao || '-'}</span></td></tr>`;
       }).join('')}</tbody>
     </table></div>`;
 }
@@ -1732,9 +1767,11 @@ async function salvarEdicaoLivro(num) {
 async function mudarStatusLivro(num, novoStatus) {
   const l = state.livros.find(x => x.numero_livro === num);
   if (!l) return;
+  const label = novoStatus === 'perdido' ? 'PERDIDO' : 'DANIFICADO';
+  if (!confirm(`Marcar o livro "${l.titulo}" como ${label}? Esta ação altera o status permanentemente.`)) return;
   l.status = novoStatus;
   try { await apiUpdate('numero_livro', num, { status: novoStatus }); } catch(e) {}
-  filtrarLivros(); renderMetrics(); toast(`Status alterado para ${novoStatus}`);
+  filtrarLivros(); renderMetrics(); toast(`Livro marcado como ${novoStatus}`);
 }
 function historicoLivroModal(num) {
   const livro = state.livros.find(l => l.numero_livro === num);
