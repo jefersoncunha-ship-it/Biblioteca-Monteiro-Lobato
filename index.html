@@ -275,6 +275,20 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 
+  /* IMPRESSÃO */
+  @media print {
+    #sidebar, .topbar, .card-title .dot, #rel_filtros, button, .btn-primary, .btn-secondary { display: none !important; }
+    #main { margin-left: 0 !important; }
+    .page-content { padding: 0 !important; }
+    .card { border: none !important; box-shadow: none !important; padding: 0 !important; }
+    body { background: white !important; font-size: 12px; }
+    table { font-size: 11px; }
+    th { background: #2F5233 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .print-header { display: block !important; }
+    .badge { border: 1px solid #ccc !important; background: white !important; color: black !important; }
+  }
+  .print-header { display: none; }
+
   /* LOGIN */
   #loginScreen {
     position: fixed; inset: 0; background: var(--verde-escuro);
@@ -356,6 +370,9 @@
     </a>
     <a class="nav-item" onclick="navigate('alunos')" href="#">
       <span class="nav-icon">👥</span><span>Alunos</span>
+    </a>
+    <a class="nav-item" onclick="navigate('relatorio')" href="#">
+      <span class="nav-icon">🖨️</span><span>Relatórios</span>
     </a>
   </div>
   <div class="sidebar-footer">
@@ -630,6 +647,47 @@
       </div>
     </div>
 
+    <!-- ==================== RELATÓRIO ==================== -->
+    <div class="page" id="page-relatorio">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title"><span class="dot"></span>Filtros do Relatório</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Turma</label>
+            <select id="rel_turma" onchange="gerarRelatorio()">
+              <option value="">Todas as turmas</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Período — De</label>
+            <input type="date" id="rel_de" onchange="gerarRelatorio()">
+          </div>
+          <div class="form-group">
+            <label>Período — Até</label>
+            <input type="date" id="rel_ate" onchange="gerarRelatorio()">
+          </div>
+          <div class="form-group">
+            <label>Situação</label>
+            <select id="rel_situacao" onchange="gerarRelatorio()">
+              <option value="">Todas</option>
+              <option value="em_andamento">Em Andamento</option>
+              <option value="entregue">Entregue</option>
+              <option value="atrasado">Em Atraso</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+          <button class="btn-primary" onclick="gerarRelatorio()">🔍 Gerar Relatório</button>
+          <button class="btn-primary" style="background:var(--marrom);" onclick="imprimirRelatorio()">🖨️ Imprimir</button>
+          <span id="rel_count" style="font-size:12px; color:var(--text-muted); align-self:center;"></span>
+        </div>
+      </div>
+
+      <div class="card" id="rel_resultado">
+        <div class="empty"><div class="empty-icon">🖨️</div><p>Selecione os filtros e clique em Gerar Relatório</p></div>
+      </div>
+    </div>
+
   </div><!-- /page-content -->
 </div><!-- /main -->
 
@@ -854,6 +912,136 @@ async function apiDelete(col, val) {
 }
 
 // ============================================================
+// RELATÓRIO POR TURMA
+// ============================================================
+function populateRelatorioSelects() {
+  const turmas = getTurmas();
+  const sel = document.getElementById('rel_turma');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Todas as turmas</option>' + turmas.map(t => `<option value="${t}">${t}</option>`).join('');
+  // Período padrão: mês atual
+  const hoje = new Date();
+  const primeiroDia = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0') + '-01';
+  const ultimoDia = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0') + '-' + String(new Date(hoje.getFullYear(), hoje.getMonth()+1, 0).getDate()).padStart(2,'0');
+  document.getElementById('rel_de').value = primeiroDia;
+  document.getElementById('rel_ate').value = ultimoDia;
+}
+
+function gerarRelatorio() {
+  const turma = document.getElementById('rel_turma').value;
+  const de = document.getElementById('rel_de').value;
+  const ate = document.getElementById('rel_ate').value;
+  const situacao = document.getElementById('rel_situacao').value;
+
+  let emps = state.emprestimos.filter(e => {
+    const aluno = state.alunos.find(a => a.numero_aluno === e.numero_aluno);
+    if (turma && (!aluno || aluno.turma !== turma)) return false;
+    if (de && e.data_retirada && e.data_retirada < de) return false;
+    if (ate && e.data_retirada && e.data_retirada > ate) return false;
+    if (situacao && statusEmp(e) !== situacao) return false;
+    return true;
+  });
+
+  // Ordenar por turma, depois nome do aluno
+  emps.sort((a, b) => {
+    const alunoA = state.alunos.find(x => x.numero_aluno === a.numero_aluno);
+    const alunoB = state.alunos.find(x => x.numero_aluno === b.numero_aluno);
+    const turmaA = alunoA ? alunoA.turma : '';
+    const turmaB = alunoB ? alunoB.turma : '';
+    if (turmaA !== turmaB) return turmaA.localeCompare(turmaB);
+    const nomeA = alunoA ? alunoA.nome : '';
+    const nomeB = alunoB ? alunoB.nome : '';
+    return nomeA.localeCompare(nomeB);
+  });
+
+  document.getElementById('rel_count').textContent = emps.length + ' registro' + (emps.length !== 1 ? 's' : '');
+
+  if (!emps.length) {
+    document.getElementById('rel_resultado').innerHTML = '<div class="empty"><div class="empty-icon">📭</div><p>Nenhum registro encontrado para os filtros selecionados</p></div>';
+    return;
+  }
+
+  // Agrupar por turma
+  const porTurma = {};
+  emps.forEach(e => {
+    const aluno = state.alunos.find(a => a.numero_aluno === e.numero_aluno);
+    const t = aluno ? aluno.turma : 'Desconhecida';
+    if (!porTurma[t]) porTurma[t] = [];
+    porTurma[t].push({ emp: e, aluno });
+  });
+
+  const periodoTxt = de && ate ? fmtDate(de) + ' a ' + fmtDate(ate) : 'Todos os períodos';
+  const turmaTxt = turma ? 'Turma ' + turma : 'Todas as turmas';
+
+  let html = `
+    <div class="print-header" style="margin-bottom:20px; border-bottom:2px solid #2F5233; padding-bottom:12px;">
+      <h2 style="font-family:'Merriweather',serif; color:#2F5233; font-size:16px; margin-bottom:4px;">Biblioteca Monteiro Lobato — EMEF 25 De Julho</h2>
+      <p style="font-size:12px; color:#5C5A52;">${turmaTxt} &nbsp;·&nbsp; ${periodoTxt} &nbsp;·&nbsp; ${emps.length} registros</p>
+    </div>`;
+
+  Object.keys(porTurma).sort().forEach(t => {
+    const registros = porTurma[t];
+    html += `
+      <div style="margin-bottom:24px;">
+        <div style="background:#2F5233; color:white; padding:6px 12px; border-radius:6px; font-size:13px; font-weight:600; margin-bottom:8px; display:inline-block;">
+          Turma ${t} — ${registros.length} empréstimo${registros.length !== 1 ? 's' : ''}
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Aluno</th>
+                <th>Nº Aluno</th>
+                <th>Livro</th>
+                <th>Retirada</th>
+                <th>Prev. Devolução</th>
+                <th>Devolvido em</th>
+                <th>Situação</th>
+                <th>Multa</th>
+                <th>Observação</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${registros.map(({emp, aluno}) => {
+                const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
+                const st = statusEmp(emp);
+                const multa = calcMulta(emp) * 1;
+                return `<tr>
+                  <td>${aluno ? aluno.nome : '-'}</td>
+                  <td><code style="font-size:11px;">${emp.numero_aluno}</code></td>
+                  <td>${livro ? livro.titulo : emp.numero_livro}</td>
+                  <td>${fmtDate(emp.data_retirada)}</td>
+                  <td>${fmtDate(emp.data_devolucao)}</td>
+                  <td>${emp.data_real_devolucao && emp.data_real_devolucao.trim() ? fmtDate(emp.data_real_devolucao) : '-'}</td>
+                  <td>${badgeStatus(st)}</td>
+                  <td>${multa > 0 ? '<span style="color:#C0392B;font-weight:600;">R$ ' + multa.toFixed(2) + '</span>' : '-'}</td>
+                  <td style="font-size:11px;color:var(--text-muted);">${emp.observacao || '-'}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  });
+
+  // Rodapé para impressão
+  html += `
+    <div class="print-header" style="margin-top:30px; border-top:1px solid #ccc; padding-top:12px; font-size:11px; color:#888; display:flex; justify-content:space-between;">
+      <span>Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</span>
+      <span>Biblioteca Virtual Monteiro Lobato — EMEF 25 De Julho</span>
+    </div>`;
+
+  document.getElementById('rel_resultado').innerHTML = html;
+}
+
+function imprimirRelatorio() {
+  // Mostrar header de impressão temporariamente
+  document.querySelectorAll('.print-header').forEach(el => el.style.display = 'block');
+  window.print();
+  document.querySelectorAll('.print-header').forEach(el => el.style.display = 'none');
+}
+
+// ============================================================
 // RECARREGAR DADOS
 // ============================================================
 async function recarregarDados() {
@@ -874,10 +1062,11 @@ function navigate(page) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.getAttribute('onclick').includes("'" + page + "'")) n.classList.add('active');
   });
-  const titles = { dashboard: 'Dashboard', retirada: 'Retirada', livros: 'Livros', alunos: 'Alunos' };
+  const titles = { dashboard: 'Dashboard', retirada: 'Retirada', livros: 'Livros', alunos: 'Alunos', relatorio: 'Relatórios' };
   document.getElementById('pageTitle').textContent = titles[page] || page;
   if (page === 'retirada') populateRetiradaSelects();
   if (page === 'alunos') populateAlunosSelects();
+  if (page === 'relatorio') populateRelatorioSelects();
 }
 
 // ============================================================
