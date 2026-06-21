@@ -916,11 +916,22 @@ async function loadAll() {
 async function apiCreate(obj) {
   return await apiCall({ action: 'create', data: obj });
 }
-async function apiUpdate(col, val, obj) {
-  return await apiCall({ action: 'update', campo: col, valor: String(val), data: obj });
+async function apiUpdate(col, val, obj, tipo) {
+  return await apiCall({ action: 'update', campo: col, valor: String(val), data: obj, tipo: tipo || inferirTipo(col, val) });
 }
-async function apiDelete(col, val) {
-  return await apiCall({ action: 'delete', campo: col, valor: String(val) });
+async function apiDelete(col, val, tipo) {
+  return await apiCall({ action: 'delete', campo: col, valor: String(val), tipo: tipo || inferirTipo(col, val) });
+}
+
+// Infere o tipo pelo campo/valor para manter compatibilidade com chamadas existentes
+function inferirTipo(col, val) {
+  if (col === 'numero_aluno') return 'aluno';
+  if (col === 'numero_livro') return 'livro';
+  if (col === 'id_emprestimo') return 'emprestimo';
+  if (col === 'id_nota') return 'planner';
+  if (String(val).startsWith('EMP')) return 'emprestimo';
+  if (String(val).startsWith('PLN_') || String(val).startsWith('REC_')) return 'planner';
+  return '';
 }
 
 // ============================================================
