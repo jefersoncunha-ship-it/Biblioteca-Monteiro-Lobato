@@ -435,6 +435,19 @@
           <canvas id="chartMultas" height="150"></canvas>
         </div>
       </div>
+
+      <div class="dash-grid" style="margin-top:16px;">
+        <!-- Livros por categoria -->
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Acervo por Categoria</div>
+          <canvas id="chartCategorias" height="180"></canvas>
+        </div>
+        <!-- Atrasos ativos -->
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Atrasos Ativos</div>
+          <div id="listAtrasos"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ==================== RETIRADA ==================== -->
@@ -537,6 +550,10 @@
               <select id="dev_aluno" onchange="carregarEmprestimosAbertos()">
                 <option value="">Selecione o aluno...</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label>Ou buscar por nome</label>
+              <input type="text" id="dev_busca_nome" placeholder="Digite o nome do aluno..." oninput="buscarAlunoDevolucao(this.value)">
             </div>
           </div>
           <div id="emprestimosAbertos" style="margin-top:16px;">
@@ -687,6 +704,13 @@
               <option value="atrasado">Em Atraso</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>Filtrar período por</label>
+            <select id="rel_campo_data" onchange="gerarRelatorio()">
+              <option value="data_retirada">Data de Retirada</option>
+              <option value="data_real_devolucao">Data de Devolução</option>
+            </select>
+          </div>
         </div>
         <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
           <button class="btn-primary" onclick="gerarRelatorio()">🔍 Gerar Relatório</button>
@@ -740,12 +764,19 @@ function fazerLogin() {
   const user = document.getElementById('loginUser').value.trim().toLowerCase();
   const senha = document.getElementById('loginPass').value;
   const erro = document.getElementById('loginError');
+  const btn = document.querySelector('.login-btn');
   const valido = USUARIOS.find(u => u.user === user && u.hash === btoa(senha));
   if (valido) {
+    btn.textContent = '⏳ Carregando...'; btn.disabled = true;
     sessionStorage.setItem('bml_logado', 'true');
-    document.getElementById('loginScreen').classList.add('hidden');
     erro.style.display = 'none';
-    loadAll();
+    loadAll().then(() => {
+      document.getElementById('loginScreen').classList.add('hidden');
+      btn.textContent = 'Entrar'; btn.disabled = false;
+    }).catch(() => {
+      document.getElementById('loginScreen').classList.add('hidden');
+      btn.textContent = 'Entrar'; btn.disabled = false;
+    });
   } else {
     erro.style.display = 'block';
     document.getElementById('loginPass').value = '';
@@ -768,6 +799,7 @@ const API_BASE = 'https://script.google.com/macros/s/AKfycbyTwcrsjOp2aHaDlnmQQqe
 const TODAY = new Date().toISOString().split('T')[0];
 let state = { alunos: [], livros: [], emprestimos: [], planner: {}, recorrencias: [], calDate: new Date(), loaded: false };
 let chartMultas = null;
+let chartCategorias = null;
 
 // ============================================================
 // UTILS
@@ -782,7 +814,10 @@ function genId8() {
   return n;
 }
 function genEmpId() {
-  return 'EMP' + Date.now().toString().slice(-6);
+  // Combina timestamp + random para evitar duplicatas
+  const ts = Date.now().toString().slice(-8);
+  const rnd = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return 'EMP' + ts + rnd;
 }
 function fmtDate(d) {
   if (!d) return '-';
@@ -834,10 +869,15 @@ async function apiCall(params) {
       })
       .join('&');
     const url = API_BASE + '?' + qs;
-    const res = await fetch(url);
+    // Timeout de 15 segundos para evitar tela travada
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.json();
   } catch(e) {
+    if (e.name === 'AbortError') throw new Error('Tempo limite da conexão atingido. Verifique sua internet.');
     console.warn('API error:', e.message); throw e;
   }
 }
@@ -956,11 +996,13 @@ function gerarRelatorio() {
   const ate = document.getElementById('rel_ate').value;
   const situacao = document.getElementById('rel_situacao').value;
 
+  const campoDt = document.getElementById('rel_campo_data')?.value || 'data_retirada';
   let emps = state.emprestimos.filter(e => {
     const aluno = state.alunos.find(a => a.numero_aluno === e.numero_aluno);
     if (turma && (!aluno || aluno.turma !== turma)) return false;
-    if (de && e.data_retirada && e.data_retirada < de) return false;
-    if (ate && e.data_retirada && e.data_retirada > ate) return false;
+    const dtCampo = e[campoDt] ? e[campoDt].trim() : '';
+    if (de && dtCampo && dtCampo < de) return false;
+    if (ate && dtCampo && dtCampo > ate) return false;
     if (situacao && statusEmp(e) !== situacao) return false;
     return true;
   });
@@ -1047,17 +1089,15 @@ function gerarRelatorio() {
   html += `
     <div class="print-header" style="margin-top:30px; border-top:1px solid #ccc; padding-top:12px; font-size:11px; color:#888; display:flex; justify-content:space-between;">
       <span>Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</span>
-      <span>Biblioteca EMEF 25 de Julho — EMEF 25 De Julho</span>
+      <span>Biblioteca EMEF 25 de Julho</span>
     </div>`;
 
   document.getElementById('rel_resultado').innerHTML = html;
 }
 
 function imprimirRelatorio() {
-  // Mostrar header de impressão temporariamente
-  document.querySelectorAll('.print-header').forEach(el => el.style.display = 'block');
+  // O CSS @media print já cuida de mostrar .print-header corretamente
   window.print();
-  document.querySelectorAll('.print-header').forEach(el => el.style.display = 'none');
 }
 
 // ============================================================
@@ -1098,6 +1138,8 @@ function renderAll() {
   renderRankingTurmas();
   renderCalendar();
   renderChartMultas();
+  renderChartCategorias();
+  renderListaAtrasos();
 }
 
 // ============================================================
@@ -1106,7 +1148,7 @@ function renderAll() {
 function renderMetrics() {
   const total_alunos = state.alunos.length;
   const total_livros = state.livros.length;
-  const empAtivos = state.emprestimos.filter(e => !e.data_real_devolucao);
+  const empAtivos = state.emprestimos.filter(e => !e.data_real_devolucao || !e.data_real_devolucao.trim());
   const total_emprestados = empAtivos.length;
   const total_disponiveis = state.livros.filter(l => l.status === 'disponível').length;
   const total_atrasos = empAtivos.filter(e => diasAtraso(e.data_devolucao) > 0).length;
@@ -1200,6 +1242,61 @@ function renderChartMultas() {
     },
     options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
   });
+}
+
+// ============================================================
+// GRÁFICO CATEGORIAS
+// ============================================================
+function renderChartCategorias() {
+  const cats = {};
+  state.livros.forEach(l => {
+    const cat = (l.categoria || 'Sem categoria').trim();
+    cats[cat] = (cats[cat] || 0) + 1;
+  });
+  const sorted = Object.entries(cats).sort((a,b) => b[1]-a[1]).slice(0,8);
+  if (!sorted.length) return;
+  const labels = sorted.map(([k]) => k);
+  const values = sorted.map(([,v]) => v);
+  const cores = ['#2F5233','#6A8F4E','#B84A1B','#E38B2C','#1565C0','#7B1FA2','#00838F','#558B2F'];
+  const ctx = document.getElementById('chartCategorias')?.getContext('2d');
+  if (!ctx) return;
+  if (chartCategorias) chartCategorias.destroy();
+  chartCategorias = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: cores, borderWidth: 2, borderColor: '#fff' }] },
+    options: { responsive: true, plugins: { legend: { position: 'right', labels: { font: { size: 11 } } } } }
+  });
+}
+
+// ============================================================
+// LISTA DE ATRASOS ATIVOS
+// ============================================================
+function renderListaAtrasos() {
+  const el = document.getElementById('listAtrasos');
+  if (!el) return;
+  const atrasados = state.emprestimos
+    .filter(e => (!e.data_real_devolucao || !e.data_real_devolucao.trim()) && diasAtraso(e.data_devolucao) > 0)
+    .map(e => {
+      const aluno = state.alunos.find(a => a.numero_aluno === e.numero_aluno);
+      const livro = state.livros.find(l => l.numero_livro === e.numero_livro);
+      const dias = diasAtraso(e.data_devolucao);
+      return { aluno, livro, emp: e, dias };
+    })
+    .sort((a,b) => b.dias - a.dias)
+    .slice(0, 8);
+
+  if (!atrasados.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><p>Nenhum atraso ativo</p></div>';
+    return;
+  }
+  el.innerHTML = atrasados.map(({aluno, livro, emp, dias}) => `
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:12px; font-weight:600;">${aluno ? aluno.nome : emp.numero_aluno}</div>
+        <div style="font-size:11px; color:var(--text-muted);">${livro ? livro.titulo : emp.numero_livro} · Turma ${aluno ? aluno.turma : '-'}</div>
+      </div>
+      <span class="badge badge-red">${dias}d</span>
+    </div>`).join('');
 }
 
 // ============================================================
@@ -1557,6 +1654,16 @@ function populateRetiradaSelects() {
   sel2.innerHTML = '<option value="">Selecione a turma...</option>' + turmas.map(t => `<option value="${t}">${t}</option>`).join('');
 }
 
+function buscarAlunoDevolucao(q) {
+  if (!q || q.length < 2) return;
+  const ql = q.toLowerCase();
+  const alunos = state.alunos.filter(a => (a.nome||'').toLowerCase().includes(ql)).slice(0,8);
+  const sel = document.getElementById('dev_aluno');
+  sel.innerHTML = '<option value="">Selecione...</option>' + alunos.map(a => `<option value="${a.numero_aluno}">${a.nome} — Turma ${a.turma}</option>`).join('');
+  document.getElementById('dev_turma').value = '';
+  document.getElementById('emprestimosAbertos').innerHTML = '<div class="empty"><div class="empty-icon">↩️</div><p>Selecione um aluno</p></div>';
+}
+
 function filtrarAlunosDevolucao() {
   const turma = document.getElementById('dev_turma').value;
   const alunos = state.alunos.filter(a => a.turma === turma).sort((a,b) => a.nome.localeCompare(b.nome));
@@ -1568,7 +1675,7 @@ function filtrarAlunosDevolucao() {
 function carregarEmprestimosAbertos() {
   const numAluno = document.getElementById('dev_aluno').value;
   if (!numAluno) return;
-  const emps = state.emprestimos.filter(e => e.numero_aluno === numAluno && !e.data_real_devolucao);
+  const emps = state.emprestimos.filter(e => e.numero_aluno === numAluno && (!e.data_real_devolucao || !e.data_real_devolucao.trim()));
   if (!emps.length) {
     document.getElementById('emprestimosAbertos').innerHTML = '<div class="alert alert-success">✅ Este aluno não possui empréstimos em aberto.</div>';
     return;
@@ -1684,7 +1791,7 @@ function carregarDadosAluno() {
   const num = document.getElementById('ret_aluno').value;
   if (!num) return;
   document.getElementById('ret_num_aluno').value = num;
-  const empAberto = state.emprestimos.find(e => e.numero_aluno === num && !e.data_real_devolucao);
+  const empAberto = state.emprestimos.find(e => e.numero_aluno === num && (!e.data_real_devolucao || !e.data_real_devolucao.trim()));
   if (empAberto) {
     const livro = state.livros.find(l => l.numero_livro === empAberto.numero_livro);
     const dias = diasAtraso(empAberto.data_devolucao);
@@ -2190,8 +2297,8 @@ function globalSearchFn(q) {
     <div style="font-size:11px;color:var(--text-muted);">${r.sub}</div>
   </div>`).join('');
 }
-document.addEventListener('click', e => {
-  if (!e.target.closest('.search-global-wrap')) document.getElementById('globalResults').style.display = 'none';
+document.addEventListener('click', evt => {
+  if (!evt.target.closest('.search-global-wrap')) document.getElementById('globalResults').style.display = 'none';
 });
 
 // ============================================================
