@@ -277,15 +277,28 @@
 
   /* IMPRESSÃO */
   @media print {
-    #sidebar, .topbar, .card-title .dot, #rel_filtros, button, .btn-primary, .btn-secondary { display: none !important; }
+    #sidebar, .topbar, #rel_filtros, .card-title, button, .btn-primary, .btn-secondary, .btn-sm, .btn-danger, .btn-warning { display: none !important; }
     #main { margin-left: 0 !important; }
     .page-content { padding: 0 !important; }
     .card { border: none !important; box-shadow: none !important; padding: 0 !important; }
-    body { background: white !important; font-size: 12px; }
-    table { font-size: 11px; }
-    th { background: #2F5233 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { background: white !important; }
     .print-header { display: flex !important; }
-    .badge { border: 1px solid #ccc !important; background: white !important; color: black !important; }
+    .badge { border: 1px solid #999 !important; background: white !important; color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th { background: #2F5233 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* Modo retrato — completo */
+    body.print-retrato { font-size: 11px; }
+    body.print-retrato table { font-size: 10px; }
+    body.print-retrato td, body.print-retrato th { padding: 5px 6px !important; }
+
+    /* Modo paisagem — resumido */
+    body.print-paisagem { font-size: 10px; }
+    body.print-paisagem table { font-size: 9px; }
+    body.print-paisagem td, body.print-paisagem th { padding: 4px 5px !important; }
+    body.print-paisagem .col-ocultar { display: none !important; }
+
+    @page { margin: 10mm; }
+    @page.paisagem { size: landscape; }
   }
   .print-header { display: none; }
 
@@ -712,10 +725,11 @@
             </select>
           </div>
         </div>
-        <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+        <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; align-items:center;">
           <button class="btn-primary" onclick="gerarRelatorio()">🔍 Gerar Relatório</button>
-          <button class="btn-primary" style="background:var(--marrom);" onclick="imprimirRelatorio()">🖨️ Imprimir</button>
-          <span id="rel_count" style="font-size:12px; color:var(--text-muted); align-self:center;"></span>
+          <button class="btn-primary" style="background:var(--marrom);" onclick="imprimirRelatorio('retrato')" title="Todas as colunas, formato vertical">🖨️ Imprimir Completo</button>
+          <button class="btn-primary" style="background:var(--verde-medio);" onclick="imprimirRelatorio('paisagem')" title="Colunas essenciais, formato horizontal, compacto">🖨️ Imprimir Resumido</button>
+          <span id="rel_count" style="font-size:12px; color:var(--text-muted);"></span>
         </div>
       </div>
 
@@ -1059,14 +1073,14 @@ function gerarRelatorio() {
             <thead>
               <tr>
                 <th>Aluno</th>
-                <th>Nº Aluno</th>
+                <th class="col-ocultar">Nº Aluno</th>
                 <th>Livro</th>
                 <th>Retirada</th>
                 <th>Prev. Devolução</th>
                 <th>Devolvido em</th>
                 <th>Situação</th>
                 <th>Multa</th>
-                <th>Observação</th>
+                <th class="col-ocultar">Observação</th>
               </tr>
             </thead>
             <tbody>
@@ -1076,14 +1090,14 @@ function gerarRelatorio() {
                 const multa = calcMulta(emp) * 1;
                 return `<tr>
                   <td>${aluno ? aluno.nome : '-'}</td>
-                  <td><code style="font-size:11px;">${emp.numero_aluno}</code></td>
+                  <td class="col-ocultar"><code style="font-size:11px;">${emp.numero_aluno}</code></td>
                   <td>${livro ? livro.titulo : emp.numero_livro}</td>
                   <td>${fmtDate(emp.data_retirada)}</td>
                   <td>${fmtDate(emp.data_devolucao)}</td>
                   <td>${emp.data_real_devolucao && emp.data_real_devolucao.trim() ? fmtDate(emp.data_real_devolucao) : '-'}</td>
                   <td>${badgeStatus(st)}</td>
                   <td>${multa > 0 ? '<span style="color:#C0392B;font-weight:600;">R$ ' + multa.toFixed(2) + '</span>' : '-'}</td>
-                  <td style="font-size:11px;color:var(--text-muted);">${emp.observacao || '-'}</td>
+                  <td class="col-ocultar" style="font-size:11px;color:var(--text-muted);">${emp.observacao || '-'}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -1102,9 +1116,36 @@ function gerarRelatorio() {
   document.getElementById('rel_resultado').innerHTML = html;
 }
 
-function imprimirRelatorio() {
-  // O CSS @media print já cuida de mostrar .print-header corretamente
+function imprimirRelatorio(modo) {
+  // Verificar se há relatório gerado
+  const resultado = document.getElementById('rel_resultado');
+  if (!resultado || resultado.querySelector('.empty')) {
+    toast('Gere o relatório primeiro antes de imprimir', 'error');
+    return;
+  }
+
+  // Aplicar modo de impressão no body
+  document.body.classList.remove('print-retrato', 'print-paisagem');
+  document.body.classList.add('print-' + (modo || 'retrato'));
+
+  // Aplicar orientação via CSS dinâmico
+  let styleEl = document.getElementById('print-orientation-style');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'print-orientation-style';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = modo === 'paisagem'
+    ? '@page { size: landscape; margin: 8mm; }'
+    : '@page { size: portrait; margin: 10mm; }';
+
   window.print();
+
+  // Limpar após impressão
+  setTimeout(() => {
+    document.body.classList.remove('print-retrato', 'print-paisagem');
+    styleEl.textContent = '';
+  }, 1000);
 }
 
 // ============================================================
