@@ -2149,8 +2149,9 @@ function carregarTurma() {
   let semLivro = 0, emAndamento = 0, atrasado = 0;
 
   const rows = alunos.map(a => {
-    const empAberto = state.emprestimos.find(e => e.numero_aluno === a.numero_aluno && !e.data_real_devolucao);
+    const empAberto = state.emprestimos.find(e => e.numero_aluno === a.numero_aluno && (!e.data_real_devolucao || !e.data_real_devolucao.trim()));
     let situacaoBadge = '';
+    let devolucaoInfo = '<span style="color:var(--text-muted);">-</span>';
     if (!empAberto) {
       semLivro++;
       situacaoBadge = '<span class="badge badge-gray">📭 Sem livro</span>';
@@ -2158,15 +2159,18 @@ function carregarTurma() {
       atrasado++;
       const dias = diasAtraso(empAberto.data_devolucao);
       situacaoBadge = `<span class="badge badge-red">⚠️ Atraso (${dias}d)</span>`;
+      devolucaoInfo = `<span style="color:#C0392B; font-weight:600;">${fmtDate(empAberto.data_devolucao)}</span><br><small style="color:#C0392B;">${dias} dia${dias>1?'s':''} em atraso</small>`;
     } else {
       emAndamento++;
       const livro = state.livros.find(l => l.numero_livro === empAberto.numero_livro);
       situacaoBadge = `<span class="badge badge-blue" title="${livro ? livro.titulo : empAberto.numero_livro}">📖 Em andamento</span>`;
+      devolucaoInfo = `<span style="color:var(--verde-escuro); font-weight:600;">${fmtDate(empAberto.data_devolucao)}</span>`;
     }
     return `<tr>
       <td><code style="font-size:11px;">${a.numero_aluno}</code></td>
       <td>${a.nome}</td>
       <td>${situacaoBadge}</td>
+      <td style="font-size:12px;">${devolucaoInfo}</td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap;">
           <button class="btn-sm" onclick="editarAlunoModal('${a.numero_aluno}')">Editar</button>
@@ -2197,7 +2201,7 @@ function carregarTurma() {
       </div>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Nº</th><th>Nome</th><th>Situação</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Nº</th><th>Nome</th><th>Situação</th><th>Devolução</th><th>Ações</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 }
