@@ -813,6 +813,13 @@ function genId8() {
   let n; do { n = Math.floor(10000000 + Math.random() * 90000000).toString(); } while (state.alunos.find(a => a.numero_aluno === n));
   return n;
 }
+function prazoPorTurma(turma) {
+  // Turmas menores (11-52): 8 dias (1 semana + 1 dia tolerância)
+  // Turmas maiores (61-93): 14 dias (2 semanas)
+  const turmasmenores = ['11','12','21','22','31','32','33','41','42','51','52'];
+  return turmasmenores.includes(String(turma).trim()) ? 8 : 14;
+}
+
 function genEmpId() {
   // Combina timestamp + random para evitar duplicatas
   const ts = Date.now().toString().slice(-8);
@@ -1791,6 +1798,15 @@ function carregarDadosAluno() {
   const num = document.getElementById('ret_aluno').value;
   if (!num) return;
   document.getElementById('ret_num_aluno').value = num;
+
+  // Ajustar prazo de devolução conforme a turma do aluno
+  const aluno = state.alunos.find(a => a.numero_aluno === num);
+  if (aluno) {
+    const prazo = prazoPorTurma(aluno.turma);
+    const dataRet = document.getElementById('ret_data_retirada').value || TODAY;
+    document.getElementById('ret_data_devolucao').value = addDays(dataRet, prazo);
+  }
+
   const empAberto = state.emprestimos.find(e => e.numero_aluno === num && (!e.data_real_devolucao || !e.data_real_devolucao.trim()));
   if (empAberto) {
     const livro = state.livros.find(l => l.numero_livro === empAberto.numero_livro);
@@ -2343,7 +2359,10 @@ function exportarDados(format) {
 document.getElementById('ret_data_retirada').value = TODAY;
 document.getElementById('ret_data_devolucao').value = addDays(TODAY, 14);
 document.getElementById('ret_data_retirada').addEventListener('change', function() {
-  document.getElementById('ret_data_devolucao').value = addDays(this.value, 14);
+  const numAluno = document.getElementById('ret_num_aluno').value;
+  const aluno = state.alunos.find(a => a.numero_aluno === numAluno);
+  const prazo = aluno ? prazoPorTurma(aluno.turma) : 14;
+  document.getElementById('ret_data_devolucao').value = addDays(this.value, prazo);
 });
 
 verificarSessao();
