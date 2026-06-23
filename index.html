@@ -2064,18 +2064,63 @@ function buscarLivro(num) {
     if (btnEditar) btnEditar.style.display = 'none';
     return;
   }
-  const livro = state.livros.find(l => l.numero_livro === num.trim());
-  if (livro) {
-    document.getElementById('ret_titulo_livro').value = livro.titulo;
-    document.getElementById('ret_autor_livro').value = livro.autor;
-    document.getElementById('ret_status_livro').value = livro.status;
-    if (btnEditar) btnEditar.style.display = 'inline';
-  } else {
+
+  const livros = state.livros.filter(l => l.numero_livro === num.trim());
+
+  if (!livros.length) {
     document.getElementById('ret_titulo_livro').value = 'Não encontrado';
     document.getElementById('ret_autor_livro').value = '';
     document.getElementById('ret_status_livro').value = '';
     if (btnEditar) btnEditar.style.display = 'none';
+    return;
   }
+
+  if (livros.length > 1) {
+    // Mais de um livro com o mesmo número — abrir seletor
+    openModal(`📚 Número ${num.trim()} — Múltiplos livros encontrados`, `
+      <div class="alert alert-warning" style="margin-bottom:14px;">
+        ⚠️ Existem <strong>${livros.length} livros</strong> cadastrados com o número <strong>${num.trim()}</strong>. Selecione o correto:
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${livros.map((l, i) => `
+          <div onclick="selecionarLivro('${l.numero_livro}', ${i})" style="
+            cursor:pointer; padding:12px 14px; border:1px solid var(--border-strong);
+            border-radius:8px; transition:all 0.15s;
+            background:${l.status === 'disponível' ? 'rgba(47,82,51,0.04)' : 'rgba(227,139,44,0.04)'};"
+            onmouseover="this.style.background='var(--bege)'"
+            onmouseout="this.style.background='${l.status === 'disponível' ? 'rgba(47,82,51,0.04)' : 'rgba(227,139,44,0.04)'}'">
+            <div style="font-weight:600; font-size:13px; margin-bottom:4px;">${l.titulo}</div>
+            <div style="font-size:12px; color:var(--text-muted);">Autor: ${l.autor || '-'} &nbsp;·&nbsp; Categoria: ${l.categoria || '-'}</div>
+            <div style="margin-top:6px;">${badgeStatus(l.status)}</div>
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:14px;">
+        <button class="btn-secondary" onclick="closeModalFn()">Cancelar</button>
+      </div>`);
+    return;
+  }
+
+  // Apenas um livro encontrado — preencher normalmente
+  preencherCamposLivro(livros[0]);
+}
+
+// Índice auxiliar para seleção de livro duplicado
+let _livrosDuplicados = [];
+
+function selecionarLivro(num, idx) {
+  const livros = state.livros.filter(l => l.numero_livro === num);
+  const livro = livros[idx] || livros[0];
+  if (!livro) return;
+  preencherCamposLivro(livro);
+  closeModalFn();
+}
+
+function preencherCamposLivro(livro) {
+  const btnEditar = document.getElementById('btn_editar_livro');
+  document.getElementById('ret_titulo_livro').value = livro.titulo;
+  document.getElementById('ret_autor_livro').value = livro.autor;
+  document.getElementById('ret_status_livro').value = livro.status;
+  if (btnEditar) btnEditar.style.display = 'inline';
 }
 
 function editarLivroRapido() {
@@ -2118,7 +2163,9 @@ async function registrarRetirada() {
   const dataDev = document.getElementById('ret_data_devolucao').value;
 
   if (!numAluno || !numLivro || !dataRet || !dataDev) { toast('Preencha todos os campos obrigatórios', 'error'); return; }
-  const livro = state.livros.find(l => l.numero_livro === numLivro);
+  const tituloSelecionado = document.getElementById('ret_titulo_livro').value;
+  const livro = state.livros.find(l => l.numero_livro === numLivro && l.titulo === tituloSelecionado)
+             || state.livros.find(l => l.numero_livro === numLivro);
   if (!livro) { toast('Livro não encontrado', 'error'); return; }
   if (livro.status !== 'disponível') { toast('Livro não está disponível para retirada', 'error'); return; }
 
