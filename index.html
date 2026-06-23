@@ -1117,35 +1117,158 @@ function gerarRelatorio() {
 }
 
 function imprimirRelatorio(modo) {
-  // Verificar se há relatório gerado
+  if (modo === 'paisagem') {
+    imprimirResumido();
+    return;
+  }
+
+  // Modo completo — retrato
   const resultado = document.getElementById('rel_resultado');
   if (!resultado || resultado.querySelector('.empty')) {
     toast('Gere o relatório primeiro antes de imprimir', 'error');
     return;
   }
-
-  // Aplicar modo de impressão no body
   document.body.classList.remove('print-retrato', 'print-paisagem');
-  document.body.classList.add('print-' + (modo || 'retrato'));
-
-  // Aplicar orientação via CSS dinâmico
+  document.body.classList.add('print-retrato');
   let styleEl = document.getElementById('print-orientation-style');
-  if (!styleEl) {
-    styleEl = document.createElement('style');
-    styleEl.id = 'print-orientation-style';
-    document.head.appendChild(styleEl);
-  }
-  styleEl.textContent = modo === 'paisagem'
-    ? '@page { size: landscape; margin: 8mm; }'
-    : '@page { size: portrait; margin: 10mm; }';
-
+  if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'print-orientation-style'; document.head.appendChild(styleEl); }
+  styleEl.textContent = '@page { size: portrait; margin: 10mm; }';
   window.print();
+  setTimeout(() => { document.body.classList.remove('print-retrato'); styleEl.textContent = ''; }, 1000);
+}
 
-  // Limpar após impressão
-  setTimeout(() => {
-    document.body.classList.remove('print-retrato', 'print-paisagem');
-    styleEl.textContent = '';
-  }, 1000);
+function imprimirResumido() {
+  const turma = document.getElementById('rel_turma').value;
+  const de = document.getElementById('rel_de').value;
+  const ate = document.getElementById('rel_ate').value;
+  const campoDt = document.getElementById('rel_campo_data')?.value || 'data_retirada';
+
+  // Pegar alunos da turma selecionada, ordenados alfabeticamente
+  const alunos = state.alunos
+    .filter(a => !turma || a.turma === turma)
+    .sort((a, b) => (a.nome||'').localeCompare(b.nome||''));
+
+  if (!alunos.length) { toast('Selecione uma turma primeiro', 'error'); return; }
+
+  console.log('=== ALUNOS ===', alunos.length);
+  console.log('=== EMPRESTIMOS TOTAL ===', state.emprestimos.length);
+
+  // Para cada aluno, pegar suas retiradas no período
+  const dadosAlunos = alunos.map(a => {
+    const emps = state.emprestimos.filter(e => {
+      if (e.numero_aluno !== a.numero_aluno) return false;
+      const dtCampo = e[campoDt] ? e[campoDt].trim() : '';
+      if (de && dtCampo && dtCampo < de) return false;
+      if (ate && dtCampo && dtCampo > ate) return false;
+      return true;
+    }).sort((a,b) => (a.data_retirada||'').localeCompare(b.data_retirada||''));
+    return { aluno: a, emps };
+  });
+
+  const periodoTxt = de && ate ? fmtDate(de) + ' a ' + fmtDate(ate) : 'Todos os períodos';
+  const turmaTxt = turma ? 'Turma ' + turma : 'Todas as turmas';
+
+  // Cabeçalho da escola
+  const logoSrc = document.querySelector('#page-relatorio img')?.src || '';
+  const cabecalhoHTML = `
+    <div style="display:flex; align-items:center; gap:14px; margin-bottom:10px; padding-bottom:8px; border-bottom:2px solid #2F5233;">
+      ${logoSrc ? `<img src="${logoSrc}" style="height:52px; object-fit:contain;">` : ''}
+      <div>
+        <div style="font-size:12px; font-weight:700; color:#1A1A18;">ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL 25 DE JULHO - 43033652</div>
+        <div style="font-size:10px; color:#5C5A52;">Rua Deputado Plínio Salgado, 150 - 25 De Julho - Campo Bom(RS) · Tel: (51) 3598-2173</div>
+        <div style="font-size:11px; font-weight:600; color:#2F5233; margin-top:2px;">Biblioteca EMEF 25 de Julho — Relatório Resumido de Empréstimos</div>
+      </div>
+    </div>
+    <div style="font-size:10px; color:#5C5A52; margin-bottom:8px; display:flex; gap:16px;">
+      <span>🏫 <strong>${turmaTxt}</strong></span>
+      <span>📅 <strong>${periodoTxt}</strong></span>
+      <span>👥 <strong>${alunos.length} alunos</strong></span>
+    </div>`;
+
+  // Gerar tabela — cada aluno numa linha, até 3 retiradas lado a lado
+  // Se tiver mais de 3, cria grupo extra (nova "linha" para o mesmo aluno)
+  console.log('=== DADOS ALUNOS ===', dadosAlunos.map(d => ({nome: d.aluno.nome, emps: d.emps.length})));
+
+  let linhas = [];
+  dadosAlunos.forEach(({ aluno, emps }) => {
+    // Dividir retiradas em grupos de 3
+    if (emps.length === 0) {
+      linhas.push({ aluno, grupo: [] });
+    } else {
+      for (let i = 0; i < emps.length; i += 3) {
+        linhas.push({ aluno, grupo: emps.slice(i, i + 3), continuacao: i > 0 });
+      }
+    }
+  });
+
+  const celulaRetirada = (emp) => {
+    if (!emp) return '<td style="border:1px solid #ddd; padding:4px 6px; font-size:9px; color:#aaa;">-</td>';
+    const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
+    const multa = calcMulta(emp) * 1;
+    const entregue = emp.data_real_devolucao && emp.data_real_devolucao.trim() ? fmtDate(emp.data_real_devolucao) : '-';
+    const atrasado = !emp.data_real_devolucao?.trim() && diasAtraso(emp.data_devolucao) > 0;
+    return `<td style="border:1px solid #ddd; padding:4px 6px; font-size:9px; vertical-align:top; ${atrasado ? 'background:#fff5f5;' : ''}">
+      <div style="font-weight:600; font-size:9px; margin-bottom:2px;">${livro ? livro.titulo.substring(0,28) : emp.numero_livro}</div>
+      <div style="color:#555;">↓ ${fmtDate(emp.data_retirada)} &nbsp; ↩ ${fmtDate(emp.data_devolucao)}</div>
+      <div style="${atrasado ? 'color:#C0392B; font-weight:600;' : 'color:#2F5233;'}">
+        Entregue: ${entregue} ${multa > 0 ? '· R$ ' + multa.toFixed(2) : ''}
+      </div>
+    </td>`;
+  };
+
+  const linhasHTML = linhas.map(({ aluno, grupo, continuacao }) => `
+    <tr>
+      <td style="border:1px solid #ddd; padding:4px 6px; font-size:10px; font-weight:${continuacao ? '400' : '600'}; vertical-align:top; white-space:nowrap; background:${continuacao ? '#fafafa' : '#fff'};">
+        ${continuacao ? '<span style="color:#aaa; font-size:9px;">↳ cont.</span>' : aluno.nome}
+      </td>
+      ${celulaRetirada(grupo[0])}
+      ${celulaRetirada(grupo[1])}
+      ${celulaRetirada(grupo[2])}
+    </tr>`).join('');
+
+  const tabelaHTML = `
+    <table style="width:100%; border-collapse:collapse; font-size:10px;">
+      <thead>
+        <tr>
+          <th style="background:#2F5233; color:white; padding:5px 6px; text-align:left; font-size:10px; width:18%;">Aluno</th>
+          <th style="background:#2F5233; color:white; padding:5px 6px; text-align:left; font-size:10px; width:27%;">Retirada 1</th>
+          <th style="background:#2F5233; color:white; padding:5px 6px; text-align:left; font-size:10px; width:27%;">Retirada 2</th>
+          <th style="background:#2F5233; color:white; padding:5px 6px; text-align:left; font-size:10px; width:27%;">Retirada 3</th>
+        </tr>
+      </thead>
+      <tbody>${linhasHTML}</tbody>
+    </table>`;
+
+  const rodapeHTML = `
+    <div style="margin-top:12px; border-top:1px solid #ccc; padding-top:8px; font-size:9px; color:#888; display:flex; justify-content:space-between;">
+      <span>Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</span>
+      <span>Biblioteca EMEF 25 de Julho</span>
+    </div>`;
+
+  // Abrir janela de impressão
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Relatório Resumido — ${turmaTxt}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; background: white; padding: 0; }
+      @page { size: landscape; margin: 8mm; }
+      @media print {
+        body { font-size: 10px; }
+        th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      }
+      tr:nth-child(even) td { background: #f9f9f9; }
+      tr:nth-child(even) td[style*="background:#fff5f5"] { background: #fff5f5 !important; }
+    </style>
+  </head><body>
+    <div style="padding: 6mm;">
+      ${cabecalhoHTML}
+      ${tabelaHTML}
+      ${rodapeHTML}
+    </div>
+    <script>window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; }<\/script>
+  </body></html>`);
+  win.document.close();
 }
 
 // ============================================================
