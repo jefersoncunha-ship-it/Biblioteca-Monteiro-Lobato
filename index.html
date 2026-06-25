@@ -10,8 +10,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
-    --verde-escuro: #4A1628;
-    --verde-medio: #7A2D3E;
+    --verde-escuro: #343A40;
+    --verde-medio: #4E5660;
     --marrom: #C8922A;
     --laranja: #E8D5A3;
     --bege: #EDE5D4;
@@ -144,7 +144,7 @@
 
   /* BADGES / STATUS */
   .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-  .badge-green { background: #E8F5E2; color: #4A1628; }
+  .badge-green { background: #E8F5E2; color: #343A40; }
   .badge-orange { background: #FFF3E0; color: #C8922A; }
   .badge-red { background: #FDECEA; color: #C0392B; }
   .badge-gray { background: #F0EDEA; color: #5C5A52; }
@@ -231,7 +231,7 @@
   /* ALERT */
   .alert { padding: 10px 14px; border-radius: 7px; font-size: 12px; margin-bottom: 12px; }
   .alert-warning { background: #FFF3E0; color: #C8922A; border: 1px solid rgba(184,74,27,0.2); }
-  .alert-success { background: #E8F5E2; color: #4A1628; border: 1px solid rgba(47,82,51,0.2); }
+  .alert-success { background: #E8F5E2; color: #343A40; border: 1px solid rgba(47,82,51,0.2); }
   .alert-info { background: #E3F0FB; color: #1565C0; border: 1px solid rgba(21,101,192,0.2); }
 
   /* SEARCH RESULT DROPDOWN */
@@ -284,7 +284,7 @@
     body { background: white !important; }
     .print-header { display: flex !important; }
     .badge { border: 1px solid #999 !important; background: white !important; color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    th { background: #4A1628 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th { background: #343A40 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
     /* Modo retrato — completo */
     body.print-retrato { font-size: 11px; }
@@ -687,7 +687,7 @@
           <div style="font-size:13px; font-weight:700; color:#1A1A18; line-height:1.4;">ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL 25 DE JULHO - 43033652</div>
           <div style="font-size:11px; color:#5C5A52; margin-top:2px;">Rua Deputado Plínio Salgado, 150 - 25 De Julho - Campo Bom(RS) - 93.700-000</div>
           <div style="font-size:11px; color:#5C5A52;">Telefone: (51) 3598-2173 &nbsp;·&nbsp; E-mail: 25dejulho@smec.campobom.rs.gov.br</div>
-          <div style="font-size:12px; font-weight:600; color:#4A1628; margin-top:4px;">📚 Biblioteca EMEF 25 de Julho — Relatório de Empréstimos</div>
+          <div style="font-size:12px; font-weight:600; color:#343A40; margin-top:4px;">📚 Biblioteca EMEF 25 de Julho — Relatório de Empréstimos</div>
         </div>
       </div>
 
@@ -1065,7 +1065,7 @@ function gerarRelatorio() {
     const registros = porTurma[t];
     html += `
       <div style="margin-bottom:24px;">
-        <div style="background:#4A1628; color:white; padding:6px 12px; border-radius:6px; font-size:13px; font-weight:600; margin-bottom:8px; display:inline-block;">
+        <div style="background:#343A40; color:white; padding:6px 12px; border-radius:6px; font-size:13px; font-weight:600; margin-bottom:8px; display:inline-block;">
           Turma ${t} — ${registros.length} empréstimo${registros.length !== 1 ? 's' : ''}
         </div>
         <div class="table-wrap">
@@ -1171,12 +1171,12 @@ function imprimirResumido() {
   // Cabeçalho da escola
   const logoSrc = document.querySelector('#page-relatorio img')?.src || '';
   const cabecalhoHTML = `
-    <div style="display:flex; align-items:center; gap:14px; margin-bottom:10px; padding-bottom:8px; border-bottom:2px solid #4A1628;">
+    <div style="display:flex; align-items:center; gap:14px; margin-bottom:10px; padding-bottom:8px; border-bottom:2px solid #343A40;">
       ${logoSrc ? `<img src="${logoSrc}" style="height:52px; object-fit:contain;">` : ''}
       <div>
         <div style="font-size:12px; font-weight:700; color:#1A1A18;">ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL 25 DE JULHO - 43033652</div>
         <div style="font-size:10px; color:#5C5A52;">Rua Deputado Plínio Salgado, 150 - 25 De Julho - Campo Bom(RS) · Tel: (51) 3598-2173</div>
-        <div style="font-size:11px; font-weight:600; color:#4A1628; margin-top:2px;">Biblioteca EMEF 25 de Julho — Relatório Resumido de Empréstimos</div>
+        <div style="font-size:11px; font-weight:600; color:#343A40; margin-top:2px;">Biblioteca EMEF 25 de Julho — Relatório Resumido de Empréstimos</div>
       </div>
     </div>
     <div style="font-size:10px; color:#5C5A52; margin-bottom:8px; display:flex; gap:16px;">
@@ -1209,7 +1209,7 @@ function imprimirResumido() {
     const atrasado = !emp.data_real_devolucao?.trim() && diasAtraso(emp.data_devolucao) > 0;
     return `<td style="border:1px solid #ddd; padding:3px 5px; font-size:9px; vertical-align:top; ${atrasado ? 'background:#fff5f5;' : ''}">
       <div style="font-weight:700; font-size:10px; line-height:1.3; margin-bottom:2px;">${livro ? livro.titulo.substring(0,24) : emp.numero_livro}</div>
-      <div style="font-size:9px; color:#555; white-space:nowrap;">↓${fmtDate(emp.data_retirada)} &nbsp;↩${fmtDate(emp.data_devolucao)} &nbsp;<span style="${atrasado ? 'color:#C0392B; font-weight:700;' : 'color:#4A1628;'}">✔${entregue}${multa > 0 ? ' R$'+multa.toFixed(2) : ''}</span></div>
+      <div style="font-size:9px; color:#555; white-space:nowrap;">↓${fmtDate(emp.data_retirada)} &nbsp;↩${fmtDate(emp.data_devolucao)} &nbsp;<span style="${atrasado ? 'color:#C0392B; font-weight:700;' : 'color:#343A40;'}">✔${entregue}${multa > 0 ? ' R$'+multa.toFixed(2) : ''}</span></div>
     </td>`;
   };
 
@@ -1229,12 +1229,12 @@ function imprimirResumido() {
     <table style="width:100%; border-collapse:collapse; font-size:9px;">
       <thead>
         <tr>
-          <th style="background:#4A1628; color:white; padding:4px 5px; text-align:left; font-size:10px; width:14%;">Aluno</th>
-          <th style="background:#4A1628; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 1</th>
-          <th style="background:#4A1628; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 2</th>
-          <th style="background:#4A1628; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 3</th>
-          <th style="background:#4A1628; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 4</th>
-          <th style="background:#4A1628; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 5</th>
+          <th style="background:#343A40; color:white; padding:4px 5px; text-align:left; font-size:10px; width:14%;">Aluno</th>
+          <th style="background:#343A40; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 1</th>
+          <th style="background:#343A40; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 2</th>
+          <th style="background:#343A40; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 3</th>
+          <th style="background:#343A40; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 4</th>
+          <th style="background:#343A40; color:white; padding:4px 5px; text-align:left; font-size:10px; width:17.2%;">Retirada 5</th>
         </tr>
       </thead>
       <tbody>${linhasHTML}</tbody>
@@ -1409,7 +1409,7 @@ function renderChartMultas() {
       labels: meses,
       datasets: [
         { label: 'Gerado', data: gerado, backgroundColor: 'rgba(184,74,27,0.5)', borderColor: '#C8922A', borderWidth: 1 },
-        { label: 'Pago', data: pago, backgroundColor: 'rgba(47,82,51,0.5)', borderColor: '#4A1628', borderWidth: 1 },
+        { label: 'Pago', data: pago, backgroundColor: 'rgba(47,82,51,0.5)', borderColor: '#343A40', borderWidth: 1 },
       ]
     },
     options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
@@ -1429,7 +1429,7 @@ function renderChartCategorias() {
   if (!sorted.length) return;
   const labels = sorted.map(([k]) => k);
   const values = sorted.map(([,v]) => v);
-  const cores = ['#4A1628','#7A2D3E','#C8922A','#E8D5A3','#1565C0','#7B1FA2','#00838F','#558B2F'];
+  const cores = ['#343A40','#4E5660','#C8922A','#E8D5A3','#1565C0','#7B1FA2','#00838F','#558B2F'];
   const ctx = document.getElementById('chartCategorias')?.getContext('2d');
   if (!ctx) return;
   if (chartCategorias) chartCategorias.destroy();
