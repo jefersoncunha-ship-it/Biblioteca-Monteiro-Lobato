@@ -1930,25 +1930,23 @@ async function finalizarDevolucao(idEmp, numAluno) {
   const diasAt = Math.max(0, Math.floor((new Date(dataReal) - new Date(emp.data_devolucao)) / 86400000));
   const multaTotal = diasAt * 1;
 
-  // Atualizar estado local
+  // OPÇÃO 1: Atualizar interface imediatamente
   emp.data_real_devolucao = dataReal;
   emp.multa = multaTotal;
   emp.multa_paga = multaPaga;
-
-  // Livro volta a ficar disponível
   const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
   if (livro) livro.status = 'disponível';
 
-  // Salvar na API
-  try {
-    await apiUpdate('id_emprestimo', idEmp, { data_real_devolucao: dataReal, multa: multaTotal, multa_paga: multaPaga });
-    if (livro) await apiUpdate('numero_livro', livro.numero_livro, { status: 'disponível' });
-  } catch(e) { toast('Salvo localmente (offline)', 'error'); }
-
   closeModalFn();
-  toast('Devolução registrada! Livro disponível novamente. ✅');
+  toast('Devolução registrada! Salvando...');
   carregarEmprestimosAbertos();
   renderAll();
+
+  // Salvar em segundo plano
+  try {
+    await apiCall({ action: 'registrarDevolucao', id_emprestimo: idEmp, data_real_devolucao: dataReal, multa: multaTotal, multa_paga: multaPaga, numero_livro: livro ? livro.numero_livro : '' });
+    toast('Devolução salva com sucesso! ✅');
+  } catch(e) { toast('Salvo localmente — verifique a conexão', 'error'); }
 }
 function filtrarAlunosPorTurma() {
   const turma = document.getElementById('ret_turma').value;
@@ -2039,21 +2037,20 @@ async function confirmarDevolucaoAnterior(idEmp, numAluno) {
   emp.multa = multaTotal;
   emp.multa_paga = multaPaga;
 
-  // Livro volta para disponível
+  // OPÇÃO 1: Atualizar interface imediatamente
   const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
   if (livro) livro.status = 'disponível';
 
-  try {
-    await apiUpdate('id_emprestimo', idEmp, { data_real_devolucao: dataReal, multa: multaTotal, multa_paga: multaPaga });
-    if (livro) await apiUpdate('numero_livro', livro.numero_livro, { status: 'disponível' });
-  } catch(e) { toast('Salvo localmente (offline)', 'error'); }
-
   closeModalFn();
-  toast(`✅ Livro devolvido! "${livro ? livro.titulo : emp.numero_livro}" está disponível novamente.`);
-
-  // Recarregar alerta e histórico
+  toast(`Livro devolvido! Salvando...`);
   carregarDadosAluno();
   renderAll();
+
+  // Salvar em segundo plano
+  try {
+    await apiCall({ action: 'registrarDevolucao', id_emprestimo: idEmp, data_real_devolucao: dataReal, multa: multaTotal, multa_paga: multaPaga, numero_livro: livro ? livro.numero_livro : '' });
+    toast(`✅ "${livro ? livro.titulo : emp.numero_livro}" disponível novamente!`);
+  } catch(e) { toast('Salvo localmente — verifique a conexão', 'error'); }
 }
 function buscarLivro(num) {
   const btnEditar = document.getElementById('btn_editar_livro');
@@ -2169,21 +2166,13 @@ async function registrarRetirada() {
   if (!livro) { toast('Livro não encontrado', 'error'); return; }
   if (livro.status !== 'disponível') { toast('Livro não está disponível para retirada', 'error'); return; }
 
-  // Indicador de carregamento
-  const btn = document.querySelector('#tab-retirada .btn-primary');
-  if (btn) { btn.textContent = '⏳ Salvando...'; btn.disabled = true; }
-
   const observacao = document.getElementById('ret_observacao')?.value.trim() || '';
-  const novoEmp = { tipo: 'emprestimo', id_emprestimo: genEmpId(), numero_aluno: numAluno, numero_livro: numLivro, data_retirada: dataRet, data_devolucao: dataDev, multa: 0, multa_paga: 0, data_real_devolucao: '', observacao };
+  const idEmp = genEmpId();
+  const novoEmp = { tipo: 'emprestimo', id_emprestimo: idEmp, numero_aluno: numAluno, numero_livro: numLivro, data_retirada: dataRet, data_devolucao: dataDev, multa: 0, multa_paga: 0, data_real_devolucao: '', observacao };
+
+  // OPÇÃO 1: Atualizar interface imediatamente, sem esperar a API
   state.emprestimos.push(novoEmp);
   livro.status = 'emprestado';
-  try {
-    await apiCreate(novoEmp);
-    await apiUpdate('numero_livro', numLivro, { status: 'emprestado' });
-  } catch(e) { toast('Salvo localmente (offline)', 'error'); }
-
-  if (btn) { btn.textContent = '✅ Registrar Retirada'; btn.disabled = false; }
-  toast('Retirada registrada com sucesso!');
   document.getElementById('ret_num_livro').value = '';
   document.getElementById('ret_aluno').value = '';
   document.getElementById('ret_num_aluno').value = '';
@@ -2192,6 +2181,15 @@ async function registrarRetirada() {
   buscarLivro('');
   renderAll();
   renderHistoricoAluno(numAluno, 'historicoAlunoRetirada');
+  toast('Retirada registrada! Salvando...');
+
+  // Salvar na API em segundo plano
+  try {
+    await apiCall({ action: 'registrarRetirada', data: novoEmp });
+    toast('Retirada salva com sucesso! ✅');
+  } catch(e) {
+    toast('Salvo localmente — verifique a conexão', 'error');
+  }
 }
 
 function renderHistoricoAluno(numAluno, container) {
@@ -2227,11 +2225,15 @@ async function cadastrarLivro() {
   if (state.livros.find(l => l.numero_livro === numero)) { toast('Número de livro já cadastrado', 'error'); return; }
 
   const novo = { tipo: 'livro', numero_livro: numero, titulo, autor, categoria, local, status: 'disponível' };
+
+  // OPÇÃO 1: Atualizar interface imediatamente
   state.livros.push(novo);
-  try { await apiCreate(novo); } catch(e) { toast('Salvo localmente', 'error'); }
-  toast('Livro cadastrado com sucesso!');
   ['liv_numero','liv_titulo','liv_autor','liv_categoria','liv_local'].forEach(id => document.getElementById(id).value = '');
   filtrarLivros(); renderMetrics();
+  toast('Livro adicionado! Salvando...');
+
+  // Salvar em segundo plano
+  try { await apiCreate(novo); toast('Livro salvo com sucesso! ✅'); } catch(e) { toast('Salvo localmente — verifique a conexão', 'error'); }
 }
 
 function limparBuscaLivros() {
@@ -2346,11 +2348,15 @@ async function cadastrarAluno() {
   const numero = genId8();
   document.getElementById('alu_numero').value = numero;
   const novo = { tipo: 'aluno', numero_aluno: numero, nome, turma };
+
+  // OPÇÃO 1: Atualizar interface imediatamente
   state.alunos.push(novo);
-  try { await apiCreate(novo); } catch(e) { toast('Salvo localmente', 'error'); }
-  toast('Aluno cadastrado!');
   document.getElementById('alu_nome').value = ''; document.getElementById('alu_turma').value = '';
   populateAlunosSelects(); renderMetrics();
+  toast('Aluno adicionado! Salvando...');
+
+  // Salvar em segundo plano
+  try { await apiCreate(novo); toast('Aluno salvo com sucesso! ✅'); } catch(e) { toast('Salvo localmente — verifique a conexão', 'error'); }
 }
 function carregarTurma() {
   const turma = document.getElementById('selTurma').value;
