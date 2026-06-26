@@ -477,6 +477,7 @@
         <div class="card" style="margin-bottom:16px;">
           <div class="card-title"><span class="dot"></span>Registrar Retirada</div>
           <div id="alertRetirada"></div>
+          <div id="statusTurmaRetirada" style="display:none; margin-bottom:12px;"></div>
           <div class="form-grid">
             <div class="form-group">
               <label>Turma</label>
@@ -1956,6 +1957,58 @@ function filtrarAlunosPorTurma() {
   document.getElementById('ret_num_aluno').value = '';
   document.getElementById('alertRetirada').innerHTML = '';
   document.getElementById('historicoAlunoRetirada').innerHTML = '<div class="empty"><div class="empty-icon">📋</div><p>Selecione um aluno</p></div>';
+
+  // Painel de status da turma
+  const painel = document.getElementById('statusTurmaRetirada');
+  if (!turma || !alunos.length) { painel.style.display = 'none'; return; }
+
+  // Calcular quem já retirou (tem empréstimo ativo) e quem não retirou
+  const comLivro = alunos.filter(a =>
+    state.emprestimos.some(e => e.numero_aluno === a.numero_aluno && (!e.data_real_devolucao || !e.data_real_devolucao.trim()))
+  );
+  const semLivro = alunos.filter(a =>
+    !state.emprestimos.some(e => e.numero_aluno === a.numero_aluno && (!e.data_real_devolucao || !e.data_real_devolucao.trim()))
+  );
+  const atrasados = alunos.filter(a => {
+    const emp = state.emprestimos.find(e => e.numero_aluno === a.numero_aluno && (!e.data_real_devolucao || !e.data_real_devolucao.trim()));
+    return emp && diasAtraso(emp.data_devolucao) > 0;
+  });
+
+  const pct = Math.round(comLivro.length / alunos.length * 100);
+
+  painel.style.display = 'block';
+  painel.innerHTML = `
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">📊 Status da Turma ${turma}</span>
+        <span style="font-size:11px; color:var(--text-muted);">${alunos.length} alunos no total</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px;">
+        <div style="text-align:center; background:rgba(200,146,42,0.1); border-radius:8px; padding:8px;">
+          <div style="font-size:22px; font-weight:700; color:#C8922A;">${semLivro.length}</div>
+          <div style="font-size:11px; color:var(--text-muted);">Faltam retirar</div>
+        </div>
+        <div style="text-align:center; background:rgba(52,58,64,0.08); border-radius:8px; padding:8px;">
+          <div style="font-size:22px; font-weight:700; color:var(--verde-escuro);">${comLivro.length}</div>
+          <div style="font-size:11px; color:var(--text-muted);">Com livro</div>
+        </div>
+        <div style="text-align:center; background:rgba(192,57,43,0.08); border-radius:8px; padding:8px;">
+          <div style="font-size:22px; font-weight:700; color:#C0392B;">${atrasados.length}</div>
+          <div style="font-size:11px; color:var(--text-muted);">Em atraso</div>
+        </div>
+      </div>
+      <div style="background:var(--bege); border-radius:6px; height:8px; overflow:hidden;">
+        <div style="height:8px; background:var(--verde-escuro); width:${pct}%; border-radius:6px; transition:width 0.4s;"></div>
+      </div>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:5px; text-align:right;">${pct}% já retiraram</div>
+      ${semLivro.length > 0 ? `
+      <div style="margin-top:10px; border-top:1px solid var(--border); padding-top:10px;">
+        <div style="font-size:11px; font-weight:600; color:var(--text-secondary); margin-bottom:6px;">👤 Ainda não retiraram:</div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+          ${semLivro.map(a => `<span style="font-size:11px; background:var(--bege); border-radius:20px; padding:2px 8px; color:var(--text-primary);">${a.nome.split(' ')[0]} ${a.nome.split(' ')[1] || ''}</span>`).join('')}
+        </div>
+      </div>` : `<div style="margin-top:10px; border-top:1px solid var(--border); padding-top:10px; text-align:center; font-size:12px; color:#2F5233; font-weight:600;">✅ Todos os alunos já retiraram!</div>`}
+    </div>`;
 }
 function carregarDadosAluno() {
   const num = document.getElementById('ret_aluno').value;
