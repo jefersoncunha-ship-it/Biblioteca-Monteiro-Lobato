@@ -2219,24 +2219,87 @@ async function registrarRetirada() {
   if (!livro) { toast('Livro não encontrado', 'error'); return; }
   if (livro.status !== 'disponível') { toast('Livro não está disponível para retirada', 'error'); return; }
 
+  // Verificar se aluno tem empréstimo em aberto
+  const empAnterior = state.emprestimos.find(e =>
+    e.numero_aluno === numAluno && (!e.data_real_devolucao || !e.data_real_devolucao.trim())
+  );
+
+  if (empAnterior) {
+    // Tem livro anterior — mostrar modal de confirmação
+    const livroAnt = state.livros.find(l => l.numero_livro === empAnterior.numero_livro);
+    const dias = diasAtraso(empAnterior.data_devolucao);
+    const multa = dias * 1;
+
+    openModal('📚 Devolução do Livro Anterior', `
+      <div class="alert alert-warning" style="margin-bottom:14px;">
+        ⚠️ Este aluno possui um livro em aberto. Ele será devolvido automaticamente ao confirmar a nova retirada.
+      </div>
+      <div style="background:var(--bege); border-radius:8px; padding:12px 14px; margin-bottom:16px;">
+        <div style="font-size:13px; font-weight:600; margin-bottom:4px;">📖 ${livroAnt ? livroAnt.titulo : empAnterior.numero_livro}</div>
+        <div style="font-size:12px; color:var(--text-muted);">Retirado em ${fmtDate(empAnterior.data_retirada)} · Previsto para ${fmtDate(empAnterior.data_devolucao)}</div>
+        ${dias > 0
+          ? `<div style="margin-top:6px; font-size:12px; color:#C0392B; font-weight:600;">⚠️ ${dias} dia${dias>1?'s':''} de atraso · Multa calculada: R$ ${multa.toFixed(2)}</div>`
+          : `<div style="margin-top:6px; font-size:12px; color:#2F5233; font-weight:600;">✅ Dentro do prazo — sem multa</div>`}
+      </div>
+      <div style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:10px;">Como deseja registrar a devolução?</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button class="btn-primary" style="text-align:left; padding:12px 14px;" onclick="finalizarRetiradaComDevolucao('${empAnterior.id_emprestimo}', '${numAluno}', '${numLivro}', '${dataRet}', '${dataDev}', false)">
+          ✅ Devolver normalmente ${multa > 0 ? '— cobrar R$ ' + multa.toFixed(2) + ' de multa' : '— sem multa'}
+        </button>
+        ${dias > 0 ? `
+        <button class="btn-primary" style="text-align:left; padding:12px 14px; background:var(--verde-medio);" onclick="finalizarRetiradaComDevolucao('${empAnterior.id_emprestimo}', '${numAluno}', '${numLivro}', '${dataRet}', '${dataDev}', true)">
+          🚫 Devolver sem multa — atraso não foi culpa do aluno
+        </button>` : ''}
+        <button class="btn-secondary" onclick="closeModalFn()">Cancelar</button>
+      </div>`);
+    return;
+  }
+
+  // Sem livro anterior — registrar diretamente
+  await _executarRetirada(numAluno, numLivro, dataRet, dataDev, livro);
+}
+
+async function finalizarRetiradaComDevolucao(idEmpAnterior, numAluno, numLivro, dataRet, dataDev, semMulta) {
+  closeModalFn();
+
+  // Encerrar empréstimo anterior
+  const empAnterior = state.emprestimos.find(e => e.id_emprestimo === idEmpAnterior);
+  if (empAnterior) {
+    const dias = semMulta ? 0 : diasAtraso(empAnterior.data_devolucao);
+    const multaTotal = dias * 1;
+    empAnterior.data_real_devolucao = TODAY;
+    empAnterior.multa = multaTotal;
+    const livroAnt = state.livros.find(l => l.numero_livro === empAnterior.numero_livro);
+    if (livroAnt) livroAnt.status = 'disponível';
+    // Salvar devolução em segundo plano
+    apiCall({ action: 'registrarDevolucao', id_emprestimo: idEmpAnterior, data_real_devolucao: TODAY, multa: multaTotal, multa_paga: 0, numero_livro: livroAnt ? livroAnt.numero_livro : '' }).catch(e => console.warn(e));
+  }
+
+  // Registrar nova retirada
+  const livro = state.livros.find(l => l.numero_livro === numLivro);
+  if (livro) await _executarRetirada(numAluno, numLivro, dataRet, dataDev, livro);
+}
+
+async function _executarRetirada(numAluno, numLivro, dataRet, dataDev, livro) {
   const observacao = document.getElementById('ret_observacao')?.value.trim() || '';
   const idEmp = genEmpId();
   const novoEmp = { tipo: 'emprestimo', id_emprestimo: idEmp, numero_aluno: numAluno, numero_livro: numLivro, data_retirada: dataRet, data_devolucao: dataDev, multa: 0, multa_paga: 0, data_real_devolucao: '', observacao };
 
-  // OPÇÃO 1: Atualizar interface imediatamente, sem esperar a API
+  // Atualizar interface imediatamente
   state.emprestimos.push(novoEmp);
   livro.status = 'emprestado';
   document.getElementById('ret_num_livro').value = '';
   document.getElementById('ret_aluno').value = '';
   document.getElementById('ret_num_aluno').value = '';
   document.getElementById('alertRetirada').innerHTML = '';
+  document.getElementById('statusTurmaRetirada').style.display = 'none';
   if (document.getElementById('ret_observacao')) document.getElementById('ret_observacao').value = '';
   buscarLivro('');
   renderAll();
   renderHistoricoAluno(numAluno, 'historicoAlunoRetirada');
   toast('Retirada registrada! Salvando...');
 
-  // Salvar na API em segundo plano
+  // Salvar em segundo plano
   try {
     await apiCall({ action: 'registrarRetirada', data: novoEmp });
     toast('Retirada salva com sucesso! ✅');
