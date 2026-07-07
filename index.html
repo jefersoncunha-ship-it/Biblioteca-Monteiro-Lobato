@@ -2542,25 +2542,96 @@ async function excluirAluno(num) {
 }
 function verHistoricoAlunoModal(num) {
   const aluno = state.alunos.find(a => a.numero_aluno === num);
-  const emps = state.emprestimos.filter(e => e.numero_aluno === num);
+  const emps = state.emprestimos.filter(e => e.numero_aluno === num)
+    .sort((a,b) => (b.data_retirada||'').localeCompare(a.data_retirada||''));
   const totalMultas = emps.reduce((s,e) => s + calcMulta(e), 0);
   const totalPago = emps.reduce((s,e) => s + parseFloat(e.multa_paga||0), 0);
+
   const rows = emps.map(e => {
     const livro = state.livros.find(l => l.numero_livro === e.numero_livro);
-    return `<tr><td>${livro ? livro.titulo : e.numero_livro}</td><td>${fmtDate(e.data_retirada)}</td>
-      <td>${fmtDate(e.data_devolucao)}</td><td>${badgeStatus(statusEmp(e))}</td>
-      <td>R$ ${(calcMulta(e)*1).toFixed(2)}</td></tr>`;
+    const st = statusEmp(e);
+    const aberto = !e.data_real_devolucao || !e.data_real_devolucao.trim();
+    const multa = calcMulta(e) * 1;
+    return `<tr>
+      <td>${livro ? livro.titulo : e.numero_livro}</td>
+      <td>${fmtDate(e.data_retirada)}</td>
+      <td>${fmtDate(e.data_devolucao)}</td>
+      <td>${badgeStatus(st)}</td>
+      <td>${multa > 0 ? '<span style="color:#C0392B;font-weight:600;">R$ ' + multa.toFixed(2) + '</span>' : '-'}</td>
+      <td>${aberto ? `<button class="btn-primary" style="font-size:11px;padding:4px 10px;background:var(--marrom);" onclick="devolverDoHistorico('${e.id_emprestimo}','${num}')">↩️ Devolver</button>` : '<span style="color:var(--text-muted);font-size:11px;">✔ Entregue</span>'}</td>
+    </tr>`;
   }).join('');
+
   openModal(`Histórico — ${aluno ? aluno.nome : num}`, `
     <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
-      <div class="metric-card brown" style="flex:1;min-width:100px;"><div class="m-label">Total Multas</div><div class="m-value" style="font-size:16px;">R$ ${totalMultas.toFixed(2)}</div></div>
-      <div class="metric-card green" style="flex:1;min-width:100px;"><div class="m-label">Pago</div><div class="m-value" style="font-size:16px;">R$ ${totalPago.toFixed(2)}</div></div>
-      <div class="metric-card red" style="flex:1;min-width:100px;"><div class="m-label">Pendente</div><div class="m-value" style="font-size:16px;">R$ ${(totalMultas-totalPago).toFixed(2)}</div></div>
+      <div class="metric-card brown" style="flex:1;min-width:90px;"><div class="m-label">Total Multas</div><div class="m-value" style="font-size:16px;">R$ ${totalMultas.toFixed(2)}</div></div>
+      <div class="metric-card green" style="flex:1;min-width:90px;"><div class="m-label">Pago</div><div class="m-value" style="font-size:16px;">R$ ${totalPago.toFixed(2)}</div></div>
+      <div class="metric-card red" style="flex:1;min-width:90px;"><div class="m-label">Pendente</div><div class="m-value" style="font-size:16px;">R$ ${(totalMultas-totalPago).toFixed(2)}</div></div>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Livro</th><th>Retirada</th><th>Devolução</th><th>Status</th><th>Multa</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">Sem empréstimos</td></tr>'}</tbody>
+      <thead><tr><th>Livro</th><th>Retirada</th><th>Prev. Devolução</th><th>Status</th><th>Multa</th><th>Ação</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">Sem empréstimos</td></tr>'}</tbody>
     </table></div>`);
+}
+
+async function devolverDoHistorico(idEmp, numAluno) {
+  const emp = state.emprestimos.find(e => e.id_emprestimo === idEmp);
+  if (!emp) return;
+  const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
+  const dias = diasAtraso(emp.data_devolucao);
+  const multa = dias * 1;
+
+  openModal('↩️ Registrar Devolução', `
+    <div class="alert alert-info" style="margin-bottom:14px;">
+      📖 <strong>${livro ? livro.titulo : emp.numero_livro}</strong><br>
+      Previsto: ${fmtDate(emp.data_devolucao)}<br>
+      ${multa > 0 ? '<span style="color:#C0392B;font-weight:600;">⚠️ Multa: R$ ' + multa.toFixed(2) + ' (' + dias + ' dia' + (dias>1?'s':'') + ')</span>' : '✅ Sem multa'}
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>Data de Devolução</label>
+      <input type="date" id="dhist_data" value="${TODAY}" onchange="atualizarMultaPreview('${emp.data_devolucao}')">
+    </div>
+    <div id="multaPreview" style="margin-bottom:12px;"></div>
+    <div class="form-group" style="margin-bottom:14px; display:none;" id="multaPagaWrap">
+      <label>Multa paga (R$)</label>
+      <input type="number" id="dev_multa_paga" value="${multa.toFixed(2)}" min="0" step="0.01">
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-primary" onclick="confirmarDevolucaoHistorico('${idEmp}','${numAluno}')">✅ Confirmar</button>
+      <button class="btn-secondary" onclick="verHistoricoAlunoModal('${numAluno}')">← Voltar</button>
+    </div>`);
+
+  setTimeout(() => atualizarMultaPreview(emp.data_devolucao), 50);
+}
+
+async function confirmarDevolucaoHistorico(idEmp, numAluno) {
+  const emp = state.emprestimos.find(e => e.id_emprestimo === idEmp);
+  if (!emp) return;
+
+  const dataReal = document.getElementById('dhist_data').value;
+  const multaPagaEl = document.getElementById('dev_multa_paga');
+  const multaPaga = multaPagaEl ? parseFloat(multaPagaEl.value || 0) : 0;
+  const diasAt = Math.max(0, Math.floor((new Date(dataReal) - new Date(emp.data_devolucao)) / 86400000));
+  const multaTotal = diasAt * 1;
+
+  // Atualizar estado local imediatamente
+  emp.data_real_devolucao = dataReal;
+  emp.multa = multaTotal;
+  emp.multa_paga = multaPaga;
+  const livro = state.livros.find(l => l.numero_livro === emp.numero_livro);
+  if (livro) livro.status = 'disponível';
+
+  closeModalFn();
+  toast('Devolução registrada! Salvando...');
+  renderAll();
+
+  // Salvar em segundo plano
+  try {
+    await apiCall({ action: 'registrarDevolucao', id_emprestimo: idEmp, data_real_devolucao: dataReal, multa: multaTotal, multa_paga: multaPaga, numero_livro: livro ? livro.numero_livro : '' });
+    toast('✅ Devolução salva com sucesso!');
+  } catch(e) {
+    toast('Salvo localmente — verifique a conexão', 'error');
+  }
 }
 
 // ============================================================
